@@ -1,0 +1,44 @@
+[package]
+name = "cloudburst"
+version = "0.0.1"
+license = "MIT OR Apache-2.0"
+authors = ["Bryant Luk <code@bryantluk.com>"]
+edition = "2021"
+description = "A library to help with the implementation of torrent based protocols and algorithms."
+keywords = ["bittorrent", "torrent", "protocol", "p2p", "distributed"]
+categories = ["network-programming"]
+repository = "https://github.com/bluk/cloudburst"
+documentation = "https://docs.rs/cloudburst/"
+readme = "README.md"
+include = [
+  "src/**/*.rs",
+  "Cargo.toml",
+  "README.md",
+  "LICENSE-APACHE",
+  "LICENSE-MIT",
+]
+
+[features]
+default = ["std"]
+
+std = ["bt_bencode/std", "serde/std", "serde_bytes/std", "bytes/std", "bitvec/std", "bitvec/atomic"]
+
+alloc = ["bt_bencode/alloc", "serde/alloc", "serde_bytes/alloc", "bitvec/alloc", "bitvec/atomic"]
+
+[dependencies]
+thiserror = "1.0"
+
+bt_bencode = { version = "0.6", default-features = false }
+serde = { version = "1.0", default-features = false }
+serde_derive = { version = "1.0" }
+serde_bytes = { version = "0.11", default-features = false }
+
+sha-1 = { version = "0.10", default-features = false }
+
+bytes = { version = "1.1", default-features = false }
+
+bitvec = { version = "1.0", default-features = false }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

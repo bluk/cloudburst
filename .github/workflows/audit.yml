@@ -1,0 +1,12 @@
+name: Rust Security Audit
+
+on:
+  push:
+    paths:
+      - '**/Cargo.toml'
+      - '**/Cargo.lock'
+  pull_request:
+
+jobs:
+  audit:
+    uses: bluk/actions-workflows/.github/workflows/rust-audit.yml@a556bfbdc9cfffd3255a0ea6b0379f23e93b05ab
