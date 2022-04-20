@@ -23,7 +23,7 @@ use crate::{
 pub const PROTOCOL_STRING_BYTES: [u8; 20] = *b"\x13BitTorrent protocol";
 
 /// The reserved bytes in the handshake.
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq)]
 pub struct ReservedBytes([u8; 8]);
 
 impl fmt::Debug for ReservedBytes {
@@ -588,7 +588,7 @@ impl CancelMsg {
 }
 
 /// Identifies what completed parts of the handshake have been received.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ReceivedHandshakeState {
     /// Have not received the complete protocol string yet.
     ///
