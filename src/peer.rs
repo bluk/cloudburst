@@ -11,6 +11,7 @@
 //! Peers have [Id]s and [Choke] and [Interest] states.
 
 use core::{borrow::Borrow, fmt};
+use gen_value::unmanaged::UnmanagedGenVec;
 use serde_derive::{Deserialize, Serialize};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
@@ -225,3 +226,31 @@ pub struct SocketAddrWithOptId {
     /// The peer's ID, if known
     pub id: Option<Id>,
 }
+
+/// Opaque identifier for a peer in a session.
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SessionId<G, I> {
+    /// Index
+    pub index: I,
+    /// Generation
+    pub gen: G,
+}
+
+impl<G, I> From<(I, G)> for SessionId<G, I> {
+    fn from(value: (I, G)) -> Self {
+        Self {
+            index: value.0,
+            gen: value.1,
+        }
+    }
+}
+
+impl<G, I> From<SessionId<G, I>> for (I, G) {
+    fn from(value: SessionId<G, I>) -> Self {
+        (value.index, value.gen)
+    }
+}
+
+/// A generational vector with peer session IDs as the indexes.
+pub type SessionIdGenVec<T, PeerGen, PeerIndex> =
+    UnmanagedGenVec<T, PeerGen, PeerIndex, SessionId<PeerGen, PeerIndex>>;

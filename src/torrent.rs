@@ -8,7 +8,9 @@
 
 //! A swarm of peers.
 
-use crate::{conn, protocol};
+use gen_value::unmanaged::UnmanagedGenVec;
+
+use crate::{conn, peer, protocol};
 
 /// Metrics for the torrent.
 ///
@@ -37,3 +39,37 @@ impl core::ops::AddAssign<conn::Metrics> for Metrics {
         self.received += rhs.received;
     }
 }
+
+/// Opaque identifier for a torrent in a session.
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SessionId<G, I> {
+    /// Index
+    pub index: I,
+    /// Generation
+    pub gen: G,
+}
+
+impl<G, I> From<(I, G)> for SessionId<G, I> {
+    fn from(value: (I, G)) -> Self {
+        Self {
+            index: value.0,
+            gen: value.1,
+        }
+    }
+}
+
+impl<G, I> From<SessionId<G, I>> for (I, G) {
+    fn from(value: SessionId<G, I>) -> Self {
+        (value.index, value.gen)
+    }
+}
+
+/// A generational vector with torrent session IDs as the indexes.
+pub type SessionIdGenVec<T, PeerGen, PeerIndex> =
+    UnmanagedGenVec<T, PeerGen, PeerIndex, SessionId<PeerGen, PeerIndex>>;
+
+/// A torrent ID and a peer ID.
+pub type SessionTorrentPeerId<PeerGen, TorrentGen, PeerIndex, TorrentIndex> = (
+    SessionId<TorrentGen, TorrentIndex>,
+    peer::SessionId<PeerGen, PeerIndex>,
+);
