@@ -446,22 +446,49 @@ impl IndexBitfield {
     }
 }
 
+/// Sealed trait for unsigned numbers.
+///
+/// Implemented for unsigned integers.
+pub trait UnsignedInt: Sized + sealed::Private {
+    /// Increments a number.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the result is greater than the max value.
+    #[must_use]
+    fn inc(&self) -> Self;
+
+    /// Decrements a number.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the result is less than 0.
+    #[must_use]
+    fn dec(&self) -> Self;
+}
+
 /// A counted set of piece indexes.
 ///
 /// Useful for keeping track of the number of peers which have a piece.
 #[derive(Debug)]
-pub struct IndexCountedSet(Vec<u8>);
+pub struct IndexCountedSet<T>(Vec<T>);
 
-impl IndexCountedSet {
+impl<T> IndexCountedSet<T>
+where
+    T: UnsignedInt,
+{
     /// Instantiates an `IndexCountedSet` with the maximum piece index.
     ///
     /// # Panics
     ///
     /// Panics if the index is greater than a [usize].
     #[must_use]
-    pub fn new(max_index: Index) -> Self {
+    pub fn new(max_index: Index) -> Self
+    where
+        T: Clone + Default,
+    {
         let len = usize::try_from(max_index.0).unwrap();
-        Self(vec![0; len])
+        Self(vec![T::default(); len])
     }
 
     /// Increments the count for the given piece index.
@@ -469,9 +496,12 @@ impl IndexCountedSet {
     /// # Panics
     ///
     /// Panics if the index is greater than a [usize].
-    pub fn inc(&mut self, index: Index) {
+    pub fn inc(&mut self, index: Index)
+    where
+        T:,
+    {
         let index = usize::try_from(index.0).unwrap();
-        self.0[index] = self.0[index].checked_add(1).unwrap();
+        self.0[index] = self.0[index].inc();
     }
 
     /// Increments the count for all of the set bits in the given bitfield.
@@ -488,7 +518,7 @@ impl IndexCountedSet {
         debug_assert_eq!(self.0.len(), bitfield.0.len());
 
         for index in bitfield.0.iter_ones() {
-            self.0[index] = self.0[index].checked_add(1).unwrap();
+            self.0[index] = self.0[index].inc();
         }
     }
 
@@ -501,7 +531,7 @@ impl IndexCountedSet {
     /// Also panics if the count becomes less than 0.
     pub fn dec(&mut self, index: Index) {
         let index = usize::try_from(index.0).unwrap();
-        self.0[index] = self.0[index].checked_sub(1).unwrap();
+        self.0[index] = self.0[index].dec();
     }
 
     /// Decrements the count for all of the set bits in the given bitfield.
@@ -518,7 +548,7 @@ impl IndexCountedSet {
         debug_assert_eq!(self.0.len(), bitfield.0.len());
 
         for index in bitfield.0.iter_ones() {
-            self.0[index] = self.0[index].checked_sub(1).unwrap();
+            self.0[index] = self.0[index].dec();
         }
     }
 
@@ -527,9 +557,12 @@ impl IndexCountedSet {
     /// # Panics
     ///
     /// Panics if the index is greater than a [usize].
-    pub fn reset(&mut self, index: Index) {
+    pub fn reset(&mut self, index: Index)
+    where
+        T: Default,
+    {
         let index = usize::try_from(index.0).unwrap();
-        self.0[index] = 0;
+        self.0[index] = T::default();
     }
 
     /// Returns the count for the given piece index.
@@ -537,7 +570,10 @@ impl IndexCountedSet {
     /// # Panics
     ///
     /// Panics if the index is greater than a [usize].
-    pub fn count(&mut self, index: Index) -> u8 {
+    pub fn count(&mut self, index: Index) -> T
+    where
+        T: Copy,
+    {
         let index = usize::try_from(index.0).unwrap();
         self.0[index]
     }
@@ -547,13 +583,42 @@ impl IndexCountedSet {
     /// # Panics
     ///
     /// Panics if an index is greater than a [u32].
-    pub fn nonzero_iter(&self) -> impl Iterator<Item = Index> + '_ {
+    pub fn nonzero_iter(&self) -> impl Iterator<Item = Index> + '_
+    where
+        T: Copy + Default + PartialOrd,
+    {
         self.0
             .iter()
             .enumerate()
-            .filter(|(_, &req_count)| req_count > 0)
+            .filter(|(_, &req_count)| req_count > T::default())
             .map(|(index, _)| Index::from(u32::try_from(index).unwrap()))
     }
+}
+
+mod sealed {
+    pub trait Private {}
+
+    macro_rules! unsigned_int_impl {
+        ($ty:ty) => {
+            impl Private for $ty {}
+
+            impl super::UnsignedInt for $ty {
+                fn inc(&self) -> Self {
+                    self.checked_add(1).unwrap()
+                }
+
+                fn dec(&self) -> Self {
+                    self.checked_sub(1).unwrap()
+                }
+            }
+        };
+    }
+
+    unsigned_int_impl!(u8);
+    unsigned_int_impl!(u16);
+    unsigned_int_impl!(u32);
+    unsigned_int_impl!(u64);
+    unsigned_int_impl!(usize);
 }
 
 #[cfg(test)]

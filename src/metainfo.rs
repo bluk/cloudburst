@@ -494,7 +494,7 @@ impl From<validation::Error> for Error {
     }
 }
 
-/// Reads and validates `Metainfo`.
+/// Reads `Metainfo`.
 ///
 /// # Important
 ///
