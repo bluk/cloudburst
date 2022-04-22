@@ -361,37 +361,23 @@ impl IndexBitfield {
         self.0.as_raw_slice()
     }
 
-    /// Gets the state of the index.
-    ///
-    /// Returns `Some(true)` if the index is set.
-    /// Returns `Some(false)` if the index is not set.
-    /// Returns `None` if the index is invalid.
+    /// Returns true if the index is set.
     ///
     /// # Panics
     ///
     /// Panics if the index is greater than a [usize].
     #[must_use]
-    pub fn get(
-        &self,
-        index: Index,
-    ) -> Option<<usize as bitvec::slice::BitSliceIndex<'_, u8, Msb0>>::Immut> {
-        self.0.get(usize::try_from(index.0).unwrap())
+    pub fn get(&self, index: Index) -> bool {
+        *self.0.get(usize::try_from(index.0).unwrap()).unwrap()
     }
 
-    /// Gets a mutable state for the given index.
-    ///
-    /// Returns `Some(true)` if the index is set.
-    /// Returns `Some(false)` if the index is not set.
-    /// Returns `None` if the index is invalid.
+    /// Sets the state for the given index.
     ///
     /// # Panics
     ///
     /// Panics if the index is greater than a [usize].
-    pub fn get_mut(
-        &mut self,
-        index: Index,
-    ) -> Option<<usize as bitvec::slice::BitSliceIndex<'_, u8, Msb0>>::Mut> {
-        self.0.get_mut(usize::try_from(index.0).unwrap())
+    pub fn set(&mut self, index: Index, value: bool) {
+        *self.0.get_mut(usize::try_from(index.0).unwrap()).unwrap() = value;
     }
 
     /// If no piece indexes are set.
@@ -636,27 +622,27 @@ mod tests {
         assert_eq!(pieces_set.iter_set().count(), 0);
         assert_eq!(pieces_set.iter_not_set().count(), 9);
 
-        assert!(!pieces_set.get(Index(3)).unwrap());
-        *pieces_set.get_mut(Index(3)).unwrap() = true;
+        assert!(!pieces_set.get(Index(3)));
+        pieces_set.set(Index(3), true);
         assert_eq!(pieces_set.as_raw_slice()[0], 0x10);
         assert_eq!(pieces_set.as_raw_slice()[1], 0x00);
-        assert!(pieces_set.get(Index(3)).unwrap());
+        assert!(pieces_set.get(Index(3)));
         assert_eq!(pieces_set.iter_set().count(), 1);
         assert_eq!(pieces_set.iter_not_set().count(), 8);
 
-        assert!(!pieces_set.get(Index(8)).unwrap());
-        *pieces_set.get_mut(Index(8)).unwrap() = true;
+        assert!(!pieces_set.get(Index(8)));
+        pieces_set.set(Index(8), true);
         assert_eq!(pieces_set.as_raw_slice()[0], 0x10);
         assert_eq!(pieces_set.as_raw_slice()[1], 0x80);
-        assert!(pieces_set.get(Index(8)).unwrap());
+        assert!(pieces_set.get(Index(8)));
         assert_eq!(pieces_set.iter_set().count(), 2);
         assert_eq!(pieces_set.iter_not_set().count(), 7);
 
-        assert!(pieces_set.get(Index(8)).unwrap());
-        *pieces_set.get_mut(Index(8)).unwrap() = false;
+        assert!(pieces_set.get(Index(8)));
+        pieces_set.set(Index(8), false);
         assert_eq!(pieces_set.as_raw_slice()[0], 0x10);
         assert_eq!(pieces_set.as_raw_slice()[1], 0x00);
-        assert!(!pieces_set.get(Index(8)).unwrap());
+        assert!(!pieces_set.get(Index(8)));
         assert_eq!(pieces_set.iter_set().count(), 1);
         assert_eq!(pieces_set.iter_not_set().count(), 8);
     }
@@ -668,32 +654,32 @@ mod tests {
         assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_superset(pieces_set1.clone()));
 
-        *pieces_set1.get_mut(Index(1)).unwrap() = true;
+        pieces_set1.set(Index(1), true);
         assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
         assert!(!pieces_set2.clone().is_superset(pieces_set1.clone()));
 
-        *pieces_set2.get_mut(Index(1)).unwrap() = true;
+        pieces_set2.set(Index(1), true);
         assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_superset(pieces_set1.clone()));
 
-        *pieces_set1.get_mut(Index(4)).unwrap() = true;
-        *pieces_set1.get_mut(Index(8)).unwrap() = true;
+        pieces_set1.set(Index(4), true);
+        pieces_set1.set(Index(8), true);
         assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
         assert!(!pieces_set2.clone().is_superset(pieces_set1.clone()));
 
-        *pieces_set2.get_mut(Index(4)).unwrap() = true;
+        pieces_set2.set(Index(4), true);
         assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
         assert!(!pieces_set2.clone().is_superset(pieces_set1.clone()));
 
-        *pieces_set2.get_mut(Index(8)).unwrap() = true;
+        pieces_set2.set(Index(8), true);
         assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_superset(pieces_set1.clone()));
 
-        *pieces_set2.get_mut(Index(7)).unwrap() = true;
+        pieces_set2.set(Index(7), true);
         assert!(!pieces_set1.clone().is_superset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_superset(pieces_set1.clone()));
 
-        *pieces_set1.get_mut(Index(6)).unwrap() = true;
+        pieces_set1.set(Index(6), true);
         assert!(!pieces_set1.clone().is_superset(pieces_set2.clone()));
         assert!(!pieces_set2.clone().is_superset(pieces_set1.clone()));
     }
@@ -705,32 +691,32 @@ mod tests {
         assert!(pieces_set1.clone().is_subset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
 
-        *pieces_set1.get_mut(Index(1)).unwrap() = true;
+        pieces_set1.set(Index(1), true);
         assert!(!pieces_set1.clone().is_subset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
 
-        *pieces_set2.get_mut(Index(1)).unwrap() = true;
+        pieces_set2.set(Index(1), true);
         assert!(pieces_set1.clone().is_subset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
 
-        *pieces_set1.get_mut(Index(4)).unwrap() = true;
-        *pieces_set1.get_mut(Index(8)).unwrap() = true;
+        pieces_set1.set(Index(4), true);
+        pieces_set1.set(Index(8), true);
         assert!(!pieces_set1.clone().is_subset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
 
-        *pieces_set2.get_mut(Index(4)).unwrap() = true;
+        pieces_set2.set(Index(4), true);
         assert!(!pieces_set1.clone().is_subset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
 
-        *pieces_set2.get_mut(Index(8)).unwrap() = true;
+        pieces_set2.set(Index(8), true);
         assert!(pieces_set1.clone().is_subset(pieces_set2.clone()));
         assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
 
-        *pieces_set2.get_mut(Index(7)).unwrap() = true;
+        pieces_set2.set(Index(7), true);
         assert!(pieces_set1.clone().is_subset(pieces_set2.clone()));
         assert!(!pieces_set2.clone().is_subset(pieces_set1.clone()));
 
-        *pieces_set1.get_mut(Index(6)).unwrap() = true;
+        pieces_set1.set(Index(6), true);
         assert!(!pieces_set1.clone().is_subset(pieces_set2.clone()));
         assert!(!pieces_set2.clone().is_subset(pieces_set1.clone()));
     }
