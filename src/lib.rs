@@ -20,7 +20,9 @@
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 extern crate alloc;
 
+pub mod conn;
 pub mod metainfo;
 pub mod peer;
 pub mod piece;
 pub mod protocol;
+pub mod torrent;

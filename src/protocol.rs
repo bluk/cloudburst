@@ -609,3 +609,152 @@ impl Default for ReceivedHandshakeState {
         Self::None(0)
     }
 }
+
+/// Protocol related metrics.
+///
+/// Useful to keep track of metrics about what messages are received and sent.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Metrics {
+    /// Keepalive messages count
+    pub keepalive_msgs: u64,
+    /// Choke messages count
+    pub choke_msgs: u64,
+    /// Unchoke messages count
+    pub unchoke_msgs: u64,
+    /// Interested messages count
+    pub interested_msgs: u64,
+    /// Not interested messages count
+    pub not_interested_msgs: u64,
+    /// Have messages count
+    pub have_msgs: u64,
+    /// Bitfield messages count
+    pub bitfield_msgs: u64,
+    /// Bitfield bytes count
+    pub bitfield_bytes: u64,
+    /// Request messages count
+    pub request_msgs: u64,
+    /// Piece messages count
+    pub piece_msgs: u64,
+    /// Piece bytes count
+    pub piece_bytes: u64,
+    /// Unrequested piece bytes count
+    pub unrequested_piece_bytes: u64,
+    /// Cancel messages count
+    pub cancel_msgs: u64,
+    /// Unknown bytes count
+    pub unknown_bytes: u64,
+}
+
+impl Metrics {
+    /// Returns if any counter is not zero.
+    ///
+    /// Primarily used to determine if the bitfield message should be received after the protocol handshake.
+    #[must_use]
+    pub fn is_any_nonzero(&self) -> bool {
+        self.keepalive_msgs != 0
+            || self.choke_msgs != 0
+            || self.unchoke_msgs != 0
+            || self.interested_msgs != 0
+            || self.not_interested_msgs != 0
+            || self.have_msgs != 0
+            || self.bitfield_bytes != 0
+            || self.bitfield_msgs != 0
+            || self.request_msgs != 0
+            || self.piece_msgs != 0
+            || self.piece_bytes != 0
+            || self.unrequested_piece_bytes != 0
+            || self.cancel_msgs != 0
+            || self.unknown_bytes != 0
+    }
+
+    /// Adds a frame's info to the metrics.
+    ///
+    /// Useful to add a frame's metrics to the overall metrics.
+    pub fn add_frame(&mut self, frame: &Frame) {
+        match frame {
+            Frame::Request(_) => {
+                self.request_msgs = self.request_msgs.saturating_add(1);
+            }
+            Frame::Piece(piece_msg) => {
+                let piece_bytes = piece_msg.0.data.len() as u64;
+                self.piece_bytes = self.piece_bytes.saturating_add(piece_bytes);
+                self.piece_msgs = self.piece_msgs.saturating_add(1);
+            }
+            Frame::KeepAlive => {
+                self.keepalive_msgs = self.keepalive_msgs.saturating_add(1);
+            }
+            Frame::Have(_) => {
+                self.have_msgs = self.have_msgs.saturating_add(1);
+            }
+            Frame::Choke => {
+                self.choke_msgs = self.choke_msgs.saturating_add(1);
+            }
+            Frame::Unchoke => {
+                self.unchoke_msgs = self.unchoke_msgs.saturating_add(1);
+            }
+            Frame::Interested => {
+                self.interested_msgs = self.interested_msgs.saturating_add(1);
+            }
+            Frame::NotInterested => {
+                self.not_interested_msgs = self.not_interested_msgs.saturating_add(1);
+            }
+            Frame::Cancel(_) => {
+                self.cancel_msgs = self.cancel_msgs.saturating_add(1);
+            }
+            Frame::Bitfield(bitfield_msg) => {
+                let bitfield_msg_len = u64::from(bitfield_msg.msg_len() - 1);
+                self.bitfield_msgs = self.bitfield_msgs.saturating_add(1);
+                self.bitfield_bytes = self.bitfield_bytes.saturating_add(bitfield_msg_len);
+            }
+            Frame::Unknown(_, data) => {
+                if let Ok(len) = u64::try_from(data.len()) {
+                    self.unknown_bytes = self.unknown_bytes.saturating_add(len);
+                } else {
+                    self.unknown_bytes = u64::MAX;
+                }
+            }
+        }
+    }
+}
+
+impl core::ops::Add for Metrics {
+    type Output = Metrics;
+
+    fn add(mut self, rhs: Metrics) -> Metrics {
+        self += rhs;
+        self
+    }
+}
+
+impl core::ops::AddAssign for Metrics {
+    fn add_assign(&mut self, rhs: Metrics) {
+        self.keepalive_msgs = self.keepalive_msgs.saturating_add(rhs.keepalive_msgs);
+        self.choke_msgs = self.choke_msgs.saturating_add(rhs.choke_msgs);
+        self.unchoke_msgs = self.unchoke_msgs.saturating_add(rhs.unchoke_msgs);
+        self.interested_msgs = self.interested_msgs.saturating_add(rhs.interested_msgs);
+        self.not_interested_msgs = self
+            .not_interested_msgs
+            .saturating_add(rhs.not_interested_msgs);
+        self.have_msgs = self.have_msgs.saturating_add(rhs.have_msgs);
+        self.bitfield_msgs = self.bitfield_msgs.saturating_add(rhs.bitfield_msgs);
+        self.bitfield_bytes = self.bitfield_bytes.saturating_add(rhs.bitfield_bytes);
+        self.request_msgs = self.request_msgs.saturating_add(rhs.request_msgs);
+        self.piece_msgs = self.piece_msgs.saturating_add(rhs.piece_msgs);
+        self.piece_bytes = self.piece_bytes.saturating_add(rhs.piece_bytes);
+        self.unrequested_piece_bytes = self
+            .unrequested_piece_bytes
+            .saturating_add(rhs.unrequested_piece_bytes);
+        self.cancel_msgs = self.cancel_msgs.saturating_add(rhs.cancel_msgs);
+        self.unknown_bytes = self.unknown_bytes.saturating_add(rhs.unknown_bytes);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_metrics_size() {
+        assert_eq!(core::mem::size_of::<Metrics>(), 112);
+    }
+}
