@@ -331,7 +331,7 @@ use bitvec::prelude::*;
 pub struct IndexBitfield(BitVec<u8, Msb0>);
 
 impl IndexBitfield {
-    /// Instantiates an `IndexSet` with the maximum piece index.
+    /// Instantiates an `IndexBitfield` with the maximum piece index.
     ///
     /// # Panics
     ///
@@ -342,7 +342,17 @@ impl IndexBitfield {
         Self(bitvec![u8, Msb0; 0; len])
     }
 
-    /// Sets the `IndexSet` with the raw bitfield bytes.
+    /// Resizes the `IndexBitfield` for the maximum piece index and sets all values to false.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the maximum index is greater than a [usize].
+    pub fn clear_with_max_index(&mut self, max_index: Index) {
+        self.0.clear();
+        self.0.resize(usize::try_from(max_index.0).unwrap(), false);
+    }
+
+    /// Sets the `IndexBitfield` with the raw bitfield bytes.
     ///
     /// # Important
     ///
@@ -407,7 +417,7 @@ impl IndexBitfield {
             .map(Index)
     }
 
-    /// Calculates all of the piece indexes set in this `IndexSet` but are not set in the other `IndexSet`.
+    /// Calculates all of the piece indexes set in this `IndexBitfield` but are not set in the other `IndexBitfield`.
     #[must_use]
     pub fn difference(self, other: IndexBitfield) -> IndexBitfield {
         let orig = self.0;
@@ -415,7 +425,7 @@ impl IndexBitfield {
         IndexBitfield(orig & not_other)
     }
 
-    /// Determines if this `IndexSet` is a superset of the other `IndexSet`.
+    /// Determines if this `IndexBitfield` is a superset of the other `IndexBitfield`.
     #[must_use]
     pub fn is_superset(self, other: IndexBitfield) -> bool {
         let not_orig = !self.0;
@@ -423,7 +433,7 @@ impl IndexBitfield {
         (not_orig & other).not_any()
     }
 
-    /// Determines if this `IndexSet` is a subset of the other `IndexSet`.
+    /// Determines if this `IndexBitfield` is a subset of the other `IndexBitfield`.
     #[must_use]
     pub fn is_subset(self, other: IndexBitfield) -> bool {
         let orig = self.0;
