@@ -426,19 +426,35 @@ impl IndexBitfield {
     }
 
     /// Determines if this `IndexBitfield` is a superset of the other `IndexBitfield`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the other bitfield is not the same length.
     #[must_use]
-    pub fn is_superset(self, other: IndexBitfield) -> bool {
-        let not_orig = !self.0;
-        let other = other.0;
-        (not_orig & other).not_any()
+    pub fn is_superset(&self, other: &IndexBitfield) -> bool {
+        assert_eq!(self.0.len(), other.0.len());
+        for index in other.0.iter_ones() {
+            if !*self.0.get(index).unwrap() {
+                return false;
+            }
+        }
+        true
     }
 
     /// Determines if this `IndexBitfield` is a subset of the other `IndexBitfield`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the other bitfield is not the same length.
     #[must_use]
-    pub fn is_subset(self, other: IndexBitfield) -> bool {
-        let orig = self.0;
-        let not_other = !other.0;
-        (orig & not_other).not_any()
+    pub fn is_subset(&self, other: &IndexBitfield) -> bool {
+        assert_eq!(self.0.len(), other.0.len());
+        for index in self.0.iter_ones() {
+            if !*other.0.get(index).unwrap() {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -661,73 +677,73 @@ mod tests {
     fn test_index_set_is_superset() {
         let mut pieces_set1 = IndexBitfield::with_max_index(Index(9));
         let mut pieces_set2 = IndexBitfield::with_max_index(Index(9));
-        assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_superset(pieces_set1.clone()));
+        assert!(pieces_set1.is_superset(&pieces_set2));
+        assert!(pieces_set2.is_superset(&pieces_set1));
 
         pieces_set1.set(Index(1), true);
-        assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
-        assert!(!pieces_set2.clone().is_superset(pieces_set1.clone()));
+        assert!(pieces_set1.is_superset(&pieces_set2));
+        assert!(!pieces_set2.is_superset(&pieces_set1));
 
         pieces_set2.set(Index(1), true);
-        assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_superset(pieces_set1.clone()));
+        assert!(pieces_set1.is_superset(&pieces_set2));
+        assert!(pieces_set2.is_superset(&pieces_set1));
 
         pieces_set1.set(Index(4), true);
         pieces_set1.set(Index(8), true);
-        assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
-        assert!(!pieces_set2.clone().is_superset(pieces_set1.clone()));
+        assert!(pieces_set1.is_superset(&pieces_set2));
+        assert!(!pieces_set2.is_superset(&pieces_set1));
 
         pieces_set2.set(Index(4), true);
-        assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
-        assert!(!pieces_set2.clone().is_superset(pieces_set1.clone()));
+        assert!(pieces_set1.is_superset(&pieces_set2));
+        assert!(!pieces_set2.is_superset(&pieces_set1));
 
         pieces_set2.set(Index(8), true);
-        assert!(pieces_set1.clone().is_superset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_superset(pieces_set1.clone()));
+        assert!(pieces_set1.is_superset(&pieces_set2));
+        assert!(pieces_set2.is_superset(&pieces_set1));
 
         pieces_set2.set(Index(7), true);
-        assert!(!pieces_set1.clone().is_superset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_superset(pieces_set1.clone()));
+        assert!(!pieces_set1.is_superset(&pieces_set2));
+        assert!(pieces_set2.is_superset(&pieces_set1));
 
         pieces_set1.set(Index(6), true);
-        assert!(!pieces_set1.clone().is_superset(pieces_set2.clone()));
-        assert!(!pieces_set2.clone().is_superset(pieces_set1.clone()));
+        assert!(!pieces_set1.is_superset(&pieces_set2));
+        assert!(!pieces_set2.is_superset(&pieces_set1));
     }
 
     #[test]
     fn test_index_set_is_subset() {
         let mut pieces_set1 = IndexBitfield::with_max_index(Index(9));
         let mut pieces_set2 = IndexBitfield::with_max_index(Index(9));
-        assert!(pieces_set1.clone().is_subset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
+        assert!(pieces_set1.is_subset(&pieces_set2));
+        assert!(pieces_set2.is_subset(&pieces_set1));
 
         pieces_set1.set(Index(1), true);
-        assert!(!pieces_set1.clone().is_subset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
+        assert!(!pieces_set1.is_subset(&pieces_set2));
+        assert!(pieces_set2.is_subset(&pieces_set1));
 
         pieces_set2.set(Index(1), true);
-        assert!(pieces_set1.clone().is_subset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
+        assert!(pieces_set1.is_subset(&pieces_set2));
+        assert!(pieces_set2.is_subset(&pieces_set1));
 
         pieces_set1.set(Index(4), true);
         pieces_set1.set(Index(8), true);
-        assert!(!pieces_set1.clone().is_subset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
+        assert!(!pieces_set1.is_subset(&pieces_set2));
+        assert!(pieces_set2.is_subset(&pieces_set1));
 
         pieces_set2.set(Index(4), true);
-        assert!(!pieces_set1.clone().is_subset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
+        assert!(!pieces_set1.is_subset(&pieces_set2));
+        assert!(pieces_set2.is_subset(&pieces_set1));
 
         pieces_set2.set(Index(8), true);
-        assert!(pieces_set1.clone().is_subset(pieces_set2.clone()));
-        assert!(pieces_set2.clone().is_subset(pieces_set1.clone()));
+        assert!(pieces_set1.is_subset(&pieces_set2));
+        assert!(pieces_set2.is_subset(&pieces_set1));
 
         pieces_set2.set(Index(7), true);
-        assert!(pieces_set1.clone().is_subset(pieces_set2.clone()));
-        assert!(!pieces_set2.clone().is_subset(pieces_set1.clone()));
+        assert!(pieces_set1.is_subset(&pieces_set2));
+        assert!(!pieces_set2.is_subset(&pieces_set1));
 
         pieces_set1.set(Index(6), true);
-        assert!(!pieces_set1.clone().is_subset(pieces_set2.clone()));
-        assert!(!pieces_set2.clone().is_subset(pieces_set1.clone()));
+        assert!(!pieces_set1.is_subset(&pieces_set2));
+        assert!(!pieces_set2.is_subset(&pieces_set1));
     }
 }
