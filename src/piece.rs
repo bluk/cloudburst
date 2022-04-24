@@ -352,6 +352,16 @@ impl IndexBitfield {
         self.0.resize(usize::try_from(max_index.0).unwrap(), false);
     }
 
+    /// Returns the maximum index for the bitfield.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the bitfield length is greater than the maximum value of an [`Index`].
+    #[must_use]
+    pub fn max_index(&self) -> Index {
+        Index::from(u32::try_from(self.0.len()).unwrap())
+    }
+
     /// Sets the `IndexBitfield` with the raw bitfield bytes.
     ///
     /// # Important
@@ -501,6 +511,16 @@ where
     {
         let len = usize::try_from(max_index.0).unwrap();
         Self(vec![T::default(); len])
+    }
+
+    /// Returns the maximum index for the counted set.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the length is greater than the maximum value of an [`Index`].
+    #[must_use]
+    pub fn max_index(&self) -> Index {
+        Index::from(u32::try_from(self.0.len()).unwrap())
     }
 
     /// Increments the count for the given piece index.
