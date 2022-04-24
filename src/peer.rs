@@ -17,7 +17,13 @@ use serde_derive::{Deserialize, Serialize};
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 #[cfg(feature = "std")]
-use std::{string::String, vec::Vec};
+use std::{
+    string::String,
+    time::{Duration, Instant},
+    vec::Vec,
+};
+
+use crate::{conn, protocol::Frame};
 
 /// A peer's ID.
 #[derive(Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -254,3 +260,278 @@ impl<G, I> From<SessionId<G, I>> for (I, G) {
 /// A generational vector with peer session IDs as the indexes.
 pub type SessionIdGenVec<T, PeerGen, PeerIndex> =
     UnmanagedGenVec<T, PeerGen, PeerIndex, SessionId<PeerGen, PeerIndex>>;
+
+/// A peer's metrics.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct Metrics {
+    /// The current interval's metrics
+    pub current: conn::Metrics,
+    /// The total metrics accumulated
+    pub total: conn::Metrics,
+}
+
+impl Metrics {
+    /// Instantiates a new instance with the last message received and sent instant set to now.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a frame's data to the sent metrics.
+    pub fn add_sent_frame(&mut self, frame: &Frame) {
+        self.current.sent.add_frame(frame);
+        self.total.sent.add_frame(frame);
+    }
+
+    /// Adds a frame's data to the received metrics.
+    pub fn add_received_frame(&mut self, frame: &Frame) {
+        self.current.received.add_frame(frame);
+        self.total.received.add_frame(frame);
+    }
+
+    /// Resets the current metrics to 0.
+    pub fn reset_current(&mut self) {
+        self.current = conn::Metrics::default();
+    }
+
+    /// Returns true if the peer has ever been unchoked before.
+    ///
+    /// Useful for finding peers which could be optimistically unchoked.
+    #[inline]
+    #[must_use]
+    pub fn has_been_unchoked(&self) -> bool {
+        self.total.sent.unchoke_msgs != 0
+    }
+
+    /// Returns true if any message has been received.
+    ///
+    /// Useful for determining if a connection is sending the bitfield messsage as the first message.
+    #[inline]
+    #[must_use]
+    pub fn has_received_any(&self) -> bool {
+        self.total.received.is_any_nonzero()
+    }
+}
+
+/// Indicates if the message has been sent or not.
+#[derive(Debug)]
+pub enum SendState<T> {
+    /// State which has not been sent yet
+    NotSent(T),
+    /// State has been sent
+    Sent(T),
+}
+
+/// A peer's state.
+#[derive(Debug)]
+#[cfg(feature = "std")]
+pub struct State {
+    /// The local choke state for the remote peer
+    pub local_choke: SendState<Choke>,
+    /// The next Instant when the choke state can be sent
+    pub next_choke_deadline: Instant,
+    /// The local interest state for the remote peer
+    pub local_interest: SendState<Interest>,
+    /// The next Instant when the interest state can be sent
+    pub next_interest_deadline: Instant,
+    /// The remote choke state for the local node
+    pub remote_choke: Choke,
+    /// The remote interest state for the local node
+    pub remote_interest: Interest,
+    /// Timeout for when a message should have been received by the peer.
+    pub read_deadline: Instant,
+    /// Timeout for when a keep alive message should be sent.
+    ///
+    /// The timeout should be reset whenever any message is sent.
+    pub write_deadline: Instant,
+}
+
+#[cfg(feature = "std")]
+impl State {
+    /// Instantiates a new peer state.
+    #[must_use]
+    pub fn new(now: Instant, read_timeout: Duration, write_timeout: Duration) -> Self {
+        Self {
+            local_choke: SendState::Sent(Choke::Choked),
+            next_choke_deadline: now,
+            local_interest: SendState::Sent(Interest::NotInterested),
+            next_interest_deadline: now,
+            remote_choke: Choke::Choked,
+            remote_interest: Interest::NotInterested,
+            read_deadline: now + read_timeout,
+            write_deadline: now + write_timeout,
+        }
+    }
+
+    /// Returns the local interest last sent to the remote.
+    #[must_use]
+    #[inline]
+    pub fn local_interest_as_remote_sees(&self) -> Interest {
+        match self.local_interest {
+            SendState::NotSent(state) => match state {
+                Interest::Interested => Interest::NotInterested,
+                Interest::NotInterested => Interest::Interested,
+            },
+            SendState::Sent(state) => state,
+        }
+    }
+
+    /// Returns the intended local interest state for the remote.
+    #[must_use]
+    #[inline]
+    pub fn local_interest_as_local_sees(&self) -> Interest {
+        match self.local_interest {
+            SendState::NotSent(state) | SendState::Sent(state) => state,
+        }
+    }
+
+    /// Returns the local choke state last sent to the remote.
+    #[must_use]
+    #[inline]
+    pub fn local_choke_as_remote_sees(&self) -> Choke {
+        match self.local_choke {
+            SendState::NotSent(state) => match state {
+                Choke::Choked => Choke::NotChoked,
+                Choke::NotChoked => Choke::Choked,
+            },
+            SendState::Sent(state) => state,
+        }
+    }
+
+    /// Returns the intended local choke state for the remote.
+    #[must_use]
+    #[inline]
+    pub fn local_choke_as_local_sees(&self) -> Choke {
+        match self.local_choke {
+            SendState::NotSent(state) | SendState::Sent(state) => state,
+        }
+    }
+
+    /// Returns true if the remote peer is in state where it can send requests.
+    #[must_use]
+    #[inline]
+    pub fn remote_unchoked_and_interested(&self) -> bool {
+        self.remote_interest == Interest::Interested
+            && self.local_choke_as_remote_sees() == Choke::NotChoked
+    }
+
+    /// Choke the remote peer.
+    ///
+    /// Returns true if the peer should write out its state.
+    #[must_use]
+    pub fn choke(&mut self) -> bool {
+        match self.local_choke {
+            SendState::NotSent(choke_state) => match choke_state {
+                Choke::Choked => true,
+                Choke::NotChoked => {
+                    self.local_choke = SendState::Sent(Choke::Choked);
+                    true
+                }
+            },
+            SendState::Sent(choke_state) => match choke_state {
+                Choke::Choked => false,
+                Choke::NotChoked => {
+                    self.local_choke = SendState::NotSent(Choke::Choked);
+                    true
+                }
+            },
+        }
+    }
+
+    /// Unchoke the remote peer.
+    ///
+    /// Returns true if the peer should write out its state.
+    #[must_use]
+    pub fn unchoke(&mut self) -> bool {
+        match self.local_choke {
+            SendState::NotSent(choke_state) => match choke_state {
+                Choke::Choked => {
+                    self.local_choke = SendState::Sent(Choke::NotChoked);
+                    true
+                }
+                Choke::NotChoked => true,
+            },
+            SendState::Sent(choke_state) => match choke_state {
+                Choke::Choked => {
+                    self.local_choke = SendState::NotSent(Choke::NotChoked);
+                    true
+                }
+                Choke::NotChoked => false,
+            },
+        }
+    }
+
+    /// Indicate interest in the remote peer.
+    ///
+    /// Returns true if the peer should write out its state.
+    #[must_use]
+    pub fn interested(&mut self) -> bool {
+        match self.local_interest {
+            SendState::NotSent(state) => match state {
+                Interest::Interested => true,
+                Interest::NotInterested => {
+                    self.local_interest = SendState::Sent(Interest::Interested);
+                    true
+                }
+            },
+            SendState::Sent(state) => match state {
+                Interest::Interested => false,
+                Interest::NotInterested => {
+                    self.local_interest = SendState::NotSent(Interest::Interested);
+                    true
+                }
+            },
+        }
+    }
+
+    /// Indicate not interested in the remote peer.
+    ///
+    /// Returns true if the peer should write out its state.
+    #[must_use]
+    pub fn not_interested(&mut self) -> bool {
+        match self.local_interest {
+            SendState::NotSent(state) => match state {
+                Interest::Interested => {
+                    self.local_interest = SendState::Sent(Interest::NotInterested);
+                    true
+                }
+                Interest::NotInterested => true,
+            },
+            SendState::Sent(state) => match state {
+                Interest::Interested => {
+                    self.local_interest = SendState::NotSent(Interest::NotInterested);
+                    true
+                }
+                Interest::NotInterested => false,
+            },
+        }
+    }
+
+    /// Returns true if there is a state change ready to be sent.
+    #[must_use]
+    pub fn should_write(&self, now: Instant) -> bool {
+        if self.write_deadline <= now {
+            return true;
+        }
+
+        match self.local_choke {
+            SendState::NotSent(_) => {
+                if self.next_choke_deadline < now {
+                    return true;
+                }
+            }
+            SendState::Sent(_) => {}
+        }
+
+        match self.local_interest {
+            SendState::NotSent(_) => {
+                if self.next_interest_deadline < now {
+                    return true;
+                }
+            }
+            SendState::Sent(_) => {}
+        }
+
+        false
+    }
+}
