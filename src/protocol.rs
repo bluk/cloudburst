@@ -667,51 +667,93 @@ impl Metrics {
             || self.unknown_bytes != 0
     }
 
+    /// Increases the metrics for a request message.
+    #[inline]
+    pub fn add_request(&mut self) {
+        self.request_msgs = self.request_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for a piece message.
+    #[inline]
+    pub fn add_piece(&mut self, piece_msg: &PieceMsg) {
+        let piece_bytes = piece_msg.0.data.len() as u64;
+        self.piece_bytes = self.piece_bytes.saturating_add(piece_bytes);
+        self.piece_msgs = self.piece_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for a keep alive message.
+    #[inline]
+    pub fn add_keepalive(&mut self) {
+        self.keepalive_msgs = self.keepalive_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for a have message.
+    #[inline]
+    pub fn add_have(&mut self) {
+        self.have_msgs = self.have_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for a choke message.
+    #[inline]
+    pub fn add_choke(&mut self) {
+        self.choke_msgs = self.choke_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for an unchoke message.
+    #[inline]
+    pub fn add_unchoke(&mut self) {
+        self.unchoke_msgs = self.unchoke_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for an interested message.
+    #[inline]
+    pub fn add_interested(&mut self) {
+        self.interested_msgs = self.interested_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for a not interested message.
+    #[inline]
+    pub fn add_not_interested(&mut self) {
+        self.not_interested_msgs = self.not_interested_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for a cancel message.
+    #[inline]
+    pub fn add_cancel(&mut self) {
+        self.cancel_msgs = self.cancel_msgs.saturating_add(1);
+    }
+
+    /// Increases the metrics for a bitfield message.
+    #[inline]
+    pub fn add_bitfield(&mut self, bitfield_msg: &BitfieldMsg) {
+        let bitfield_msg_len = u64::from(bitfield_msg.msg_len() - 1);
+        self.bitfield_msgs = self.bitfield_msgs.saturating_add(1);
+        self.bitfield_bytes = self.bitfield_bytes.saturating_add(bitfield_msg_len);
+    }
+
+    /// Increases the metrics for an unknown message.
+    #[inline]
+    pub fn add_unknown(&mut self, len: u64) {
+        self.unknown_bytes = self.unknown_bytes.saturating_add(len);
+    }
+
     /// Adds a frame's info to the metrics.
     ///
     /// Useful to add a frame's metrics to the overall metrics.
     pub fn add_frame(&mut self, frame: &Frame) {
         match frame {
-            Frame::Request(_) => {
-                self.request_msgs = self.request_msgs.saturating_add(1);
-            }
-            Frame::Piece(piece_msg) => {
-                let piece_bytes = piece_msg.0.data.len() as u64;
-                self.piece_bytes = self.piece_bytes.saturating_add(piece_bytes);
-                self.piece_msgs = self.piece_msgs.saturating_add(1);
-            }
-            Frame::KeepAlive => {
-                self.keepalive_msgs = self.keepalive_msgs.saturating_add(1);
-            }
-            Frame::Have(_) => {
-                self.have_msgs = self.have_msgs.saturating_add(1);
-            }
-            Frame::Choke => {
-                self.choke_msgs = self.choke_msgs.saturating_add(1);
-            }
-            Frame::Unchoke => {
-                self.unchoke_msgs = self.unchoke_msgs.saturating_add(1);
-            }
-            Frame::Interested => {
-                self.interested_msgs = self.interested_msgs.saturating_add(1);
-            }
-            Frame::NotInterested => {
-                self.not_interested_msgs = self.not_interested_msgs.saturating_add(1);
-            }
-            Frame::Cancel(_) => {
-                self.cancel_msgs = self.cancel_msgs.saturating_add(1);
-            }
-            Frame::Bitfield(bitfield_msg) => {
-                let bitfield_msg_len = u64::from(bitfield_msg.msg_len() - 1);
-                self.bitfield_msgs = self.bitfield_msgs.saturating_add(1);
-                self.bitfield_bytes = self.bitfield_bytes.saturating_add(bitfield_msg_len);
-            }
+            Frame::Request(_) => self.add_request(),
+            Frame::Piece(piece_msg) => self.add_piece(piece_msg),
+            Frame::KeepAlive => self.add_keepalive(),
+            Frame::Have(_) => self.add_have(),
+            Frame::Choke => self.add_choke(),
+            Frame::Unchoke => self.add_unchoke(),
+            Frame::Interested => self.add_interested(),
+            Frame::NotInterested => self.add_not_interested(),
+            Frame::Cancel(_) => self.add_cancel(),
+            Frame::Bitfield(bitfield_msg) => self.add_bitfield(bitfield_msg),
             Frame::Unknown(_, data) => {
-                if let Ok(len) = u64::try_from(data.len()) {
-                    self.unknown_bytes = self.unknown_bytes.saturating_add(len);
-                } else {
-                    self.unknown_bytes = u64::MAX;
-                }
+                self.add_unknown(u64::try_from(data.len()).unwrap_or(u64::MAX));
             }
         }
     }
