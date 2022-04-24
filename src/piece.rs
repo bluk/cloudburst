@@ -368,9 +368,15 @@ impl IndexBitfield {
     ///
     /// [`verify_bitfield`] should be called to verify the slice is a valid
     /// bitfield before calling this function
+    ///
+    /// # Panics
+    ///
+    /// Panics if the maximum index is greater than a [usize].
     #[must_use]
-    pub fn from_slice(bitfield: &[u8]) -> Self {
-        Self(BitVec::from_slice(bitfield))
+    pub fn from_slice(bitfield: &[u8], max_index: Index) -> Self {
+        let mut bitfield = BitVec::from_slice(bitfield);
+        bitfield.resize(usize::try_from(max_index.0).unwrap(), false);
+        Self(bitfield)
     }
 
     /// View the underlying bytes of the index set.
@@ -656,6 +662,21 @@ mod sealed {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_index_bitfield_max_index() {
+        let max_piece_index = Index(9);
+        let pieces_set = IndexBitfield::with_max_index(max_piece_index);
+        assert_eq!(pieces_set.max_index(), Index(9));
+
+        let pieces_set = IndexBitfield::from_slice(&[0; 2], Index(9));
+        assert_eq!(pieces_set.max_index(), Index(9));
+        assert_eq!(pieces_set.as_raw_slice(), &[0, 0]);
+
+        let pieces_set = IndexBitfield::from_slice(&[0xFE; 20], Index(9));
+        assert_eq!(pieces_set.max_index(), Index(9));
+        assert_eq!(pieces_set.as_raw_slice(), &[0xFE, 0xFE]);
+    }
 
     #[test]
     fn test_index_set() {
