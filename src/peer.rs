@@ -323,6 +323,57 @@ impl Metrics {
     }
 }
 
+/// History of metrics.
+#[derive(Clone, Copy, Debug)]
+pub struct MetricsHistory<const SIZE: usize> {
+    /// A limited history of messages.
+    history: [conn::Metrics; SIZE],
+    /// The last index which history was stored at.
+    history_index: usize,
+}
+
+impl<const SIZE: usize> Default for MetricsHistory<SIZE> {
+    fn default() -> Self {
+        assert!(SIZE > 0);
+        Self {
+            history: [conn::Metrics::default(); SIZE],
+            history_index: SIZE - 1,
+        }
+    }
+}
+
+impl<const SIZE: usize> MetricsHistory<SIZE> {
+    /// Returns an accumulation of the previous historical metrics.
+    ///
+    /// `count` is the number of previous historical metrics to use.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number of requested accumulated metrics is greater than
+    /// the length of the stored history.
+    #[must_use]
+    pub fn prev_metrics(&self, count: usize) -> conn::Metrics {
+        assert!(count <= SIZE, "Requested more metrics than available");
+
+        let mut index = self.history_index;
+        let mut metrics = self.history[index];
+        for _ in 0..count {
+            if index == 0 {
+                index = self.history.len();
+            }
+            index -= 1;
+            metrics += self.history[index];
+        }
+        metrics
+    }
+
+    /// Inserts the current metrics to the history.
+    pub fn insert(&mut self, metrics: conn::Metrics) {
+        self.history_index = (self.history_index + 1) % self.history.len();
+        self.history[self.history_index] = metrics;
+    }
+}
+
 /// Indicates if the message has been sent or not.
 #[derive(Debug)]
 enum SendState<T> {
