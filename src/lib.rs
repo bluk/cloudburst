@@ -25,4 +25,5 @@ pub mod metainfo;
 pub mod peer;
 pub mod piece;
 pub mod protocol;
+pub mod time;
 pub mod torrent;

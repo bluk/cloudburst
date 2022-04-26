@@ -10,30 +10,23 @@
 //!
 //! Peers have [Id]s and [Choke] and [Interest] states.
 
-use core::{borrow::Borrow, fmt};
-use gen_value::unmanaged::UnmanagedGenVec;
+use bytes::Bytes;
+use core::{borrow::Borrow, fmt, time::Duration};
+use gen_value::{index::Allocator, unmanaged::UnmanagedGenVec, Incrementable};
 use serde_derive::{Deserialize, Serialize};
+
+use crate::{
+    conn,
+    piece::{self, Index, IndexBitfield},
+    protocol::{BitfieldMsg, CancelMsg, Frame, HaveMsg, PieceMsg, RequestMsg, ReservedBytes},
+    time,
+};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 
 #[cfg(feature = "std")]
-use crate::{
-    piece::{self, Index, IndexBitfield},
-    protocol::{BitfieldMsg, CancelMsg, HaveMsg, PieceMsg, RequestMsg, ReservedBytes},
-};
-#[cfg(feature = "std")]
-use bytes::Bytes;
-#[cfg(feature = "std")]
-use gen_value::{index::Allocator, Incrementable};
-#[cfg(feature = "std")]
-use std::{
-    string::String,
-    time::{Duration, Instant},
-    vec::Vec,
-};
-
-use crate::{conn, protocol::Frame};
+use std::{string::String, vec::Vec};
 
 /// A peer's ID.
 #[derive(Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -385,8 +378,7 @@ enum SendState<T> {
 
 /// A peer's state.
 #[derive(Debug)]
-#[cfg(feature = "std")]
-struct State {
+struct State<Instant> {
     /// The local choke state for the remote peer
     local_choke: SendState<Choke>,
     /// The next Instant when the choke state can be sent
@@ -407,19 +399,21 @@ struct State {
     write_deadline: Instant,
 }
 
-#[cfg(feature = "std")]
-impl State {
+impl<Instant> State<Instant>
+where
+    Instant: time::Instant,
+{
     /// Instantiates a new peer state.
     #[must_use]
     fn new(now: Instant, read_timeout: Duration, write_timeout: Duration) -> Self {
         Self {
             local_choke: SendState::Sent(Choke::Choked),
-            next_choke_deadline: now,
+            next_choke_deadline: now.clone(),
             local_interest: SendState::Sent(Interest::NotInterested),
-            next_interest_deadline: now,
+            next_interest_deadline: now.clone(),
             remote_choke: Choke::Choked,
             remote_interest: Interest::NotInterested,
-            read_deadline: now + read_timeout,
+            read_deadline: now.clone() + read_timeout,
             write_deadline: now + write_timeout,
         }
     }
@@ -552,14 +546,14 @@ impl State {
 
     /// Returns true if there is a state change ready to be sent.
     #[must_use]
-    fn should_write(&self, now: Instant) -> bool {
-        if self.write_deadline <= now {
+    fn should_write(&self, now: &Instant) -> bool {
+        if self.write_deadline <= *now {
             return true;
         }
 
         match self.local_choke {
             SendState::NotSent(_) => {
-                if self.next_choke_deadline < now {
+                if self.next_choke_deadline < *now {
                     return true;
                 }
             }
@@ -568,7 +562,7 @@ impl State {
 
         match self.local_interest {
             SendState::NotSent(_) => {
-                if self.next_interest_deadline < now {
+                if self.next_interest_deadline < *now {
                     return true;
                 }
             }
@@ -581,14 +575,15 @@ impl State {
 
 /// Updates the state for a session when messages are written to a peer.
 #[derive(Debug)]
-#[cfg(feature = "std")]
-pub struct Writer<'a> {
-    state: &'a mut State,
+pub struct Writer<'a, Instant> {
+    state: &'a mut State<Instant>,
     peer_have_pieces: &'a IndexBitfield,
 }
 
-#[cfg(feature = "std")]
-impl<'a> Writer<'a> {
+impl<'a, Instant> Writer<'a, Instant>
+where
+    Instant: time::Instant,
+{
     /// Returns the pieces which the peer has.
     #[must_use]
     #[inline]
@@ -678,8 +673,8 @@ impl<'a> Writer<'a> {
     /// are tried first.
     #[must_use]
     #[inline]
-    pub fn should_send_keepalive(&mut self, now: Instant) -> bool {
-        self.state.write_deadline <= now
+    pub fn should_send_keepalive(&mut self, now: &Instant) -> bool {
+        self.state.write_deadline <= *now
     }
 
     /// Update the write deadline for when a message should be sent to keep the
@@ -768,23 +763,37 @@ pub struct InvalidInput;
 ///
 /// Depending on how I/O is performed, there are different implementations
 /// dependent on the environment.
-#[cfg(feature = "std")]
-#[derive(Debug, Default)]
-pub struct Session<PeerGen = usize, PeerIndex = usize> {
+#[derive(Debug)]
+pub struct Session<Instant, PeerGen = usize, PeerIndex = usize> {
     /// A generator for peer IDs.
     id_alloc: Allocator<PeerGen, PeerIndex, SessionId<PeerGen, PeerIndex>>,
 
     reserved_bytes: SessionIdGenVec<ReservedBytes, PeerGen, PeerIndex>,
     id: SessionIdGenVec<Id, PeerGen, PeerIndex>,
-    state: SessionIdGenVec<State, PeerGen, PeerIndex>,
+    state: SessionIdGenVec<State<Instant>, PeerGen, PeerIndex>,
     have_pieces: SessionIdGenVec<IndexBitfield, PeerGen, PeerIndex>,
 
     /// The count of peers which are interested and can request blocks
     unchoked_and_interested_count: usize,
 }
 
-#[cfg(feature = "std")]
-impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex> {
+impl<Instant, PeerGen, PeerIndex> Default for Session<Instant, PeerGen, PeerIndex>
+where
+    PeerIndex: Default,
+{
+    fn default() -> Self {
+        Self {
+            id_alloc: Allocator::default(),
+            reserved_bytes: SessionIdGenVec::default(),
+            id: SessionIdGenVec::default(),
+            state: SessionIdGenVec::default(),
+            have_pieces: SessionIdGenVec::default(),
+            unchoked_and_interested_count: 0,
+        }
+    }
+}
+
+impl<Instant, PeerGen, PeerIndex> Session<Instant, PeerGen, PeerIndex> {
     /// Returns the number of peers which are interested and can request blocks.
     #[inline]
     #[must_use]
@@ -793,9 +802,9 @@ impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex> {
     }
 }
 
-#[cfg(feature = "std")]
-impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex>
+impl<Instant, PeerGen, PeerIndex> Session<Instant, PeerGen, PeerIndex>
 where
+    Instant: time::Instant,
     PeerGen: PartialEq,
     PeerIndex: Into<usize>,
 {
@@ -884,7 +893,7 @@ where
     #[inline]
     #[must_use]
     pub fn get_read_deadline(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Instant {
-        self.state[peer_id].read_deadline
+        self.state[peer_id].read_deadline.clone()
     }
 
     /// Returns the write deadline.
@@ -895,7 +904,7 @@ where
     #[inline]
     #[must_use]
     pub fn get_write_deadline(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Instant {
-        self.state[peer_id].write_deadline
+        self.state[peer_id].write_deadline.clone()
     }
 
     /// Returns true if the peer should send a message.
@@ -905,7 +914,7 @@ where
     /// Panics if the peer ID is invalid.
     #[inline]
     #[must_use]
-    pub fn should_write(&self, peer_id: SessionId<PeerGen, PeerIndex>, now: Instant) -> bool {
+    pub fn should_write(&self, peer_id: SessionId<PeerGen, PeerIndex>, now: &Instant) -> bool {
         self.state[peer_id].should_write(now)
     }
 
@@ -1160,9 +1169,9 @@ where
     }
 }
 
-#[cfg(feature = "std")]
-impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex>
+impl<Instant, PeerGen, PeerIndex> Session<Instant, PeerGen, PeerIndex>
 where
+    Instant: time::Instant,
     PeerGen: Clone + PartialEq,
     PeerIndex: Clone + Into<usize>,
 {
@@ -1263,7 +1272,7 @@ where
     /// Returns the [Writer] for a peer.
     #[must_use]
     #[inline]
-    pub fn get_writer(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> Writer<'_> {
+    pub fn get_writer(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> Writer<'_, Instant> {
         Writer {
             state: &mut self.state[peer_id.clone()],
             peer_have_pieces: &mut self.have_pieces[peer_id],
@@ -1271,8 +1280,10 @@ where
     }
 }
 
-#[cfg(feature = "std")]
-impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex> {
+impl<Instant, PeerGen, PeerIndex> Session<Instant, PeerGen, PeerIndex>
+where
+    Instant: time::Instant,
+{
     /// Inserts a peer into the session.
     ///
     /// # Errors
