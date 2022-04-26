@@ -16,6 +16,16 @@ use serde_derive::{Deserialize, Serialize};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
+
+#[cfg(feature = "std")]
+use crate::{
+    piece::{self, Index, IndexBitfield},
+    protocol::{BitfieldMsg, CancelMsg, HaveMsg, PieceMsg, RequestMsg, ReservedBytes},
+};
+#[cfg(feature = "std")]
+use bytes::Bytes;
+#[cfg(feature = "std")]
+use gen_value::{index::Allocator, Incrementable};
 #[cfg(feature = "std")]
 use std::{
     string::String,
@@ -315,7 +325,7 @@ impl Metrics {
 
 /// Indicates if the message has been sent or not.
 #[derive(Debug)]
-pub enum SendState<T> {
+enum SendState<T> {
     /// State which has not been sent yet
     NotSent(T),
     /// State has been sent
@@ -325,32 +335,32 @@ pub enum SendState<T> {
 /// A peer's state.
 #[derive(Debug)]
 #[cfg(feature = "std")]
-pub struct State {
+struct State {
     /// The local choke state for the remote peer
-    pub local_choke: SendState<Choke>,
+    local_choke: SendState<Choke>,
     /// The next Instant when the choke state can be sent
-    pub next_choke_deadline: Instant,
+    next_choke_deadline: Instant,
     /// The local interest state for the remote peer
-    pub local_interest: SendState<Interest>,
+    local_interest: SendState<Interest>,
     /// The next Instant when the interest state can be sent
-    pub next_interest_deadline: Instant,
+    next_interest_deadline: Instant,
     /// The remote choke state for the local node
-    pub remote_choke: Choke,
+    remote_choke: Choke,
     /// The remote interest state for the local node
-    pub remote_interest: Interest,
+    remote_interest: Interest,
     /// Timeout for when a message should have been received by the peer.
-    pub read_deadline: Instant,
+    read_deadline: Instant,
     /// Timeout for when a keep alive message should be sent.
     ///
     /// The timeout should be reset whenever any message is sent.
-    pub write_deadline: Instant,
+    write_deadline: Instant,
 }
 
 #[cfg(feature = "std")]
 impl State {
     /// Instantiates a new peer state.
     #[must_use]
-    pub fn new(now: Instant, read_timeout: Duration, write_timeout: Duration) -> Self {
+    fn new(now: Instant, read_timeout: Duration, write_timeout: Duration) -> Self {
         Self {
             local_choke: SendState::Sent(Choke::Choked),
             next_choke_deadline: now,
@@ -366,7 +376,7 @@ impl State {
     /// Returns the local interest last sent to the remote.
     #[must_use]
     #[inline]
-    pub fn local_interest_as_remote_sees(&self) -> Interest {
+    fn local_interest_as_remote_sees(&self) -> Interest {
         match self.local_interest {
             SendState::NotSent(state) => match state {
                 Interest::Interested => Interest::NotInterested,
@@ -376,19 +386,10 @@ impl State {
         }
     }
 
-    /// Returns the intended local interest state for the remote.
-    #[must_use]
-    #[inline]
-    pub fn local_interest_as_local_sees(&self) -> Interest {
-        match self.local_interest {
-            SendState::NotSent(state) | SendState::Sent(state) => state,
-        }
-    }
-
     /// Returns the local choke state last sent to the remote.
     #[must_use]
     #[inline]
-    pub fn local_choke_as_remote_sees(&self) -> Choke {
+    fn local_choke_as_remote_sees(&self) -> Choke {
         match self.local_choke {
             SendState::NotSent(state) => match state {
                 Choke::Choked => Choke::NotChoked,
@@ -398,19 +399,10 @@ impl State {
         }
     }
 
-    /// Returns the intended local choke state for the remote.
-    #[must_use]
-    #[inline]
-    pub fn local_choke_as_local_sees(&self) -> Choke {
-        match self.local_choke {
-            SendState::NotSent(state) | SendState::Sent(state) => state,
-        }
-    }
-
     /// Returns true if the remote peer is in state where it can send requests.
     #[must_use]
     #[inline]
-    pub fn remote_unchoked_and_interested(&self) -> bool {
+    fn remote_unchoked_and_interested(&self) -> bool {
         self.remote_interest == Interest::Interested
             && self.local_choke_as_remote_sees() == Choke::NotChoked
     }
@@ -419,7 +411,7 @@ impl State {
     ///
     /// Returns true if the peer should write out its state.
     #[must_use]
-    pub fn choke(&mut self) -> bool {
+    fn choke(&mut self) -> bool {
         match self.local_choke {
             SendState::NotSent(choke_state) => match choke_state {
                 Choke::Choked => true,
@@ -442,7 +434,7 @@ impl State {
     ///
     /// Returns true if the peer should write out its state.
     #[must_use]
-    pub fn unchoke(&mut self) -> bool {
+    fn unchoke(&mut self) -> bool {
         match self.local_choke {
             SendState::NotSent(choke_state) => match choke_state {
                 Choke::Choked => {
@@ -465,7 +457,7 @@ impl State {
     ///
     /// Returns true if the peer should write out its state.
     #[must_use]
-    pub fn interested(&mut self) -> bool {
+    fn interested(&mut self) -> bool {
         match self.local_interest {
             SendState::NotSent(state) => match state {
                 Interest::Interested => true,
@@ -488,7 +480,7 @@ impl State {
     ///
     /// Returns true if the peer should write out its state.
     #[must_use]
-    pub fn not_interested(&mut self) -> bool {
+    fn not_interested(&mut self) -> bool {
         match self.local_interest {
             SendState::NotSent(state) => match state {
                 Interest::Interested => {
@@ -509,7 +501,7 @@ impl State {
 
     /// Returns true if there is a state change ready to be sent.
     #[must_use]
-    pub fn should_write(&self, now: Instant) -> bool {
+    fn should_write(&self, now: Instant) -> bool {
         if self.write_deadline <= now {
             return true;
         }
@@ -533,5 +525,781 @@ impl State {
         }
 
         false
+    }
+}
+
+/// Updates the state for a session when messages are written to a peer.
+#[derive(Debug)]
+#[cfg(feature = "std")]
+pub struct Writer<'a> {
+    state: &'a mut State,
+    peer_have_pieces: &'a IndexBitfield,
+}
+
+#[cfg(feature = "std")]
+impl<'a> Writer<'a> {
+    /// Returns the pieces which the peer has.
+    #[must_use]
+    #[inline]
+    pub fn peer_have_pieces(&self) -> &IndexBitfield {
+        self.peer_have_pieces
+    }
+
+    /// Returns a choke state to be written to the peer.
+    ///
+    /// The `next_state_change` parameter is used to determine when the next
+    /// choke state change can be sent.
+    ///
+    /// If there is no state change, then `None` is returned.  State changes may
+    /// be delayed for a period of time to avoid quickly changing the state back
+    /// and forth.
+    pub fn choke(&mut self, next_state_change: Duration, now: Instant) -> Option<Choke> {
+        if self.state.next_choke_deadline <= now {
+            match self.state.local_choke {
+                SendState::NotSent(choke_state) => match choke_state {
+                    Choke::Choked => {
+                        self.state.local_choke = SendState::Sent(choke_state);
+                        self.state.next_choke_deadline = now + next_state_change;
+                        return Some(Choke::Choked);
+                    }
+                    Choke::NotChoked => {
+                        self.state.local_choke = SendState::Sent(choke_state);
+                        self.state.next_choke_deadline = now + next_state_change;
+                        return Some(Choke::NotChoked);
+                    }
+                },
+                SendState::Sent(_) => {}
+            }
+        }
+
+        None
+    }
+
+    /// Returns an interest state to be written to the peer.
+    ///
+    /// The `next_state_change` parameter is used to determine when the next
+    /// interest state change can be sent.
+    ///
+    /// If there is no state change, then `None` is returned.  State changes may
+    /// be delayed for a period of time to avoid quickly changing the state back
+    /// and forth.
+    pub fn interest(&mut self, next_state_change: Duration, now: Instant) -> Option<Interest> {
+        if self.state.next_interest_deadline <= now {
+            match self.state.local_interest {
+                SendState::NotSent(interest_state) => match interest_state {
+                    Interest::Interested => {
+                        self.state.local_interest = SendState::Sent(interest_state);
+                        self.state.next_interest_deadline = now + next_state_change;
+                        return Some(Interest::Interested);
+                    }
+                    Interest::NotInterested => {
+                        self.state.local_interest = SendState::Sent(interest_state);
+                        self.state.next_interest_deadline = now + next_state_change;
+                        return Some(Interest::NotInterested);
+                    }
+                },
+                SendState::Sent(_) => {}
+            }
+        }
+
+        None
+    }
+
+    /// Returns true if blocks requests (or cancellation of previous block requests) can be sent.
+    #[must_use]
+    #[inline]
+    pub fn can_request_blocks(&mut self) -> bool {
+        self.state.remote_choke == Choke::NotChoked
+            && self.state.local_interest_as_remote_sees() == Interest::Interested
+    }
+
+    /// Returns true if block data can be sent.
+    #[must_use]
+    #[inline]
+    pub fn can_provide_blocks(&mut self) -> bool {
+        self.state.local_choke_as_remote_sees() == Choke::NotChoked
+            && self.state.remote_interest == Interest::Interested
+    }
+
+    /// Returns true if a keep alive should be sent.
+    ///
+    /// This method should be called after all attempts to send other messages
+    /// are tried first.
+    #[must_use]
+    #[inline]
+    pub fn should_send_keepalive(&mut self, now: Instant) -> bool {
+        self.state.write_deadline <= now
+    }
+
+    /// Update the write deadline for when a message should be sent to keep the
+    /// connection alive.
+    ///
+    /// This method should be called when any message is sent to the peer.
+    #[inline]
+    pub fn on_write(&mut self, timeout: Duration, now: Instant) {
+        self.state.write_deadline = now + timeout;
+    }
+}
+
+/// An ID cannot be allocated for the peer.
+///
+/// If a peer disconnects, an ID may become available (but is not guaranteed).
+/// In most cases, the newly connected peer should be disconnected unless an
+/// existing peer can be disconnected.
+#[derive(Debug)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[cfg_attr(feature = "std", error("an identifier could not be allocated"))]
+pub struct CouldNotAllocateId;
+
+/// Invalid input was received from a peer.
+///
+/// The expectation is that the peer will be disconnected from.
+#[derive(Debug)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[cfg_attr(feature = "std", error("peer sent invalid input"))]
+pub struct InvalidInput;
+
+/// Stores and updates the state of peers.
+///
+/// Usually, there is a singleton instance of a `Session` which manages the
+/// state for peers across all torrents.
+///
+/// Any peer related event usually will require interaction with the session.
+/// After handshakes are exchanged with a peer, the peer can be inserted into the
+/// session and a peer [`SessionId`][cloudburst::peer::SessionId] is returned.
+///
+/// The `SessionId` is valid until the peer is removed from the session.
+/// All methods must be called with a valid `SessionId`.
+///
+/// When a message is received from a peer, a callback on the session should be
+/// invoked. For instance, if the remote peer sends a [`HaveMsg`] message, the
+/// [`on_read_have()`][Self::on_read_have()] method should be called.
+///
+/// When a peer's connection can be written to, the
+/// [`get_writer()`][Self::get_writer()] method should be invoked. The
+/// [`Writer`] has methods like
+/// [`interest()`][Writer::interest()] which should be
+/// called to see if an [`Interest`] state change should be sent. To determine
+/// if there are state messages yet to be written, the
+/// [`should_write`][Self::should_write] method can be called.
+///
+/// A method must be called when a message is received or sent because the read
+/// and write timeouts are updated on method callbacks.
+///
+/// Besides callbacks when a message is received or sent, the
+/// [`choke()`][Self::choke()] and [`unchoke()`][Self::unchoke()] method should
+/// be called when an algorithm determines which peers it wishes to provide
+/// blocks for. Similarly, [`interested()`][Self::interested()] and
+/// [`not_interested()`][Self::not_interested()] can be called if the peer has
+/// blocks which are not available locally.
+///
+/// The state which is kept by the session include:
+///
+/// * [`Id`][peer::Id] and [`ReservedBytes`][ReservedBytes] from the handshake.
+/// * The [`Choke`] and [`Interest`] state for and from the peer
+/// * The pieces which the remote peer has
+/// * The read and write timeout deadlines
+///
+/// Notably there is no direct input/output. The session only maintains state.
+/// It is intended to be reusable across different I/O implementations (e.g.
+/// different async runtimes and sync implementations).
+///
+/// Furthermore, there is information intentionally left to the caller of the
+/// session to manage. Stateful data which is expected to be managed externally:
+///
+/// * A list of valid peer `SessionId`s
+/// * The torrent which is associated with the peer
+/// * Any metrics (such as bandwidth usage) associated with a peer
+/// * What blocks have been requested from and by a peer
+/// * Block data which should be sent to a peer
+/// * Block data received from the peer
+/// * The locally available piece indexes which should be announced to each peer
+///
+/// Depending on how I/O is performed, there are different implementations
+/// dependent on the environment.
+#[cfg(feature = "std")]
+#[derive(Debug, Default)]
+pub struct Session<PeerGen = usize, PeerIndex = usize> {
+    /// A generator for peer IDs.
+    id_alloc: Allocator<PeerGen, PeerIndex, SessionId<PeerGen, PeerIndex>>,
+
+    reserved_bytes: SessionIdGenVec<ReservedBytes, PeerGen, PeerIndex>,
+    id: SessionIdGenVec<Id, PeerGen, PeerIndex>,
+    state: SessionIdGenVec<State, PeerGen, PeerIndex>,
+    have_pieces: SessionIdGenVec<IndexBitfield, PeerGen, PeerIndex>,
+
+    /// The count of peers which are interested and can request blocks
+    unchoked_and_interested_count: usize,
+}
+
+#[cfg(feature = "std")]
+impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex> {
+    /// Returns the number of peers which are interested and can request blocks.
+    #[inline]
+    #[must_use]
+    pub fn unchoked_and_interested_count(&self) -> usize {
+        self.unchoked_and_interested_count
+    }
+}
+
+#[cfg(feature = "std")]
+impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex>
+where
+    PeerGen: PartialEq,
+    PeerIndex: Into<usize>,
+{
+    /// Returns the reserved bytes received during the connection handshake.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_reserved_bytes(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> ReservedBytes {
+        self.reserved_bytes[peer_id]
+    }
+
+    /// Returns the [`Id`][peer::Id] received during the connection handshake.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_id(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Id {
+        self.id[peer_id]
+    }
+
+    /// Returns the local choke state for the remote.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_choke(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Choke {
+        self.state[peer_id].local_choke_as_remote_sees()
+    }
+
+    /// Returns the local interest state for the remote.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_interest(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Interest {
+        self.state[peer_id].local_interest_as_remote_sees()
+    }
+
+    /// Returns the choke state from the remote for the local node.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_remote_choke(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Choke {
+        self.state[peer_id].remote_choke
+    }
+
+    /// Returns the interest state from the remote for the local node.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_remote_interest(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Interest {
+        self.state[peer_id].remote_interest
+    }
+
+    /// Returns the have pieces bitfield.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_have_pieces(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> &IndexBitfield {
+        &self.have_pieces[peer_id]
+    }
+
+    /// Returns the read deadline.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_read_deadline(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Instant {
+        self.state[peer_id].read_deadline
+    }
+
+    /// Returns the write deadline.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn get_write_deadline(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Instant {
+        self.state[peer_id].write_deadline
+    }
+
+    /// Returns true if the peer should send a message.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    #[must_use]
+    pub fn should_write(&self, peer_id: SessionId<PeerGen, PeerIndex>, now: Instant) -> bool {
+        self.state[peer_id].should_write(now)
+    }
+
+    /// Chokes a peer.
+    ///
+    /// Returns true if the peer should write out its state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[must_use]
+    pub fn choke(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> bool {
+        let state = &mut self.state[peer_id];
+        if state.remote_unchoked_and_interested() {
+            self.unchoked_and_interested_count =
+                self.unchoked_and_interested_count.checked_sub(1).unwrap();
+        }
+
+        state.choke()
+    }
+
+    /// Unchokes a peer.
+    ///
+    /// Returns true if the peer should write out its state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[must_use]
+    pub fn unchoke(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> bool {
+        let state = &mut self.state[peer_id];
+        let should_write = state.unchoke();
+        if state.remote_unchoked_and_interested() {
+            self.unchoked_and_interested_count =
+                self.unchoked_and_interested_count.checked_add(1).unwrap();
+        }
+        should_write
+    }
+
+    /// Interested in peer.
+    ///
+    /// Returns true if the peer should write out its state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[must_use]
+    #[inline]
+    pub fn interested(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> bool {
+        self.state[peer_id].interested()
+    }
+
+    /// Not interested in peer.
+    ///
+    /// Returns true if the peer should write out its state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[must_use]
+    #[inline]
+    pub fn not_interested(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> bool {
+        self.state[peer_id].not_interested()
+    }
+
+    /// Callback when a choke message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_choke(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id];
+        state.read_deadline = now + next_read;
+        state.remote_choke = Choke::Choked;
+        Ok(())
+    }
+
+    /// Callback when an unchoke message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_unchoke(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id];
+        state.read_deadline = now + next_read;
+        state.remote_choke = Choke::NotChoked;
+        Ok(())
+    }
+
+    /// Callback when an interested message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_interested(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id];
+        state.read_deadline = now + next_read;
+        state.remote_interest = Interest::Interested;
+        if state.remote_unchoked_and_interested() {
+            self.unchoked_and_interested_count =
+                self.unchoked_and_interested_count.checked_add(1).unwrap();
+        }
+        Ok(())
+    }
+
+    /// Callback when a not interested message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_not_interested(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id];
+        state.read_deadline = now + next_read;
+        if state.remote_unchoked_and_interested() {
+            self.unchoked_and_interested_count =
+                self.unchoked_and_interested_count.checked_sub(1).unwrap();
+        }
+        state.remote_interest = Interest::NotInterested;
+        Ok(())
+    }
+
+    /// Callback when a piece message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_piece(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        _piece_msg: &PieceMsg,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id];
+        state.read_deadline = now + next_read;
+
+        Ok(())
+    }
+
+    /// Callback when a cancel message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_cancel(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        _cancel_msg: &CancelMsg,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id];
+        state.read_deadline = now + next_read;
+
+        Ok(())
+    }
+
+    /// Callback when a keep alive message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_keepalive(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id];
+        state.read_deadline = now + next_read;
+
+        Ok(())
+    }
+
+    /// Callback when an unknown message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_unknown(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        _msg_type: u8,
+        _msg_data: &Bytes,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id];
+        state.read_deadline = now + next_read;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "std")]
+impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex>
+where
+    PeerGen: Clone + PartialEq,
+    PeerIndex: Clone + Into<usize>,
+{
+    /// Callback when a have piece message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_have(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        have_msg: &HaveMsg,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id.clone()];
+        state.read_deadline = now + next_read;
+
+        let have_pieces = &mut self.have_pieces[peer_id];
+        if have_pieces.get(have_msg.0) {
+            // tracing::trace!(?peer_id, %index, "duplicate have message");
+            return Err(InvalidInput);
+        }
+        have_pieces.set(have_msg.0, true);
+        Ok(())
+    }
+
+    /// Callback when a bitfield message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_bitfield(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        bitfield_msg: &BitfieldMsg,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id.clone()];
+        state.read_deadline = now + next_read;
+
+        let have_pieces = &mut self.have_pieces[peer_id];
+        if piece::verify_bitfield(have_pieces.max_index(), &bitfield_msg.0).is_err() {
+            // tracing::trace!(?peer_id, "invalid bitfield message");
+            return Err(InvalidInput);
+        }
+        *have_pieces = IndexBitfield::from_slice(&bitfield_msg.0, have_pieces.max_index());
+
+        Ok(())
+    }
+
+    /// Callback when a request message is received from a peer.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned if the message caused an invalid state change.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    #[inline]
+    pub fn on_read_request(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+        request_msg: &RequestMsg,
+        next_read: Duration,
+        now: Instant,
+    ) -> Result<(), InvalidInput> {
+        let state = &mut self.state[peer_id.clone()];
+        state.read_deadline = now + next_read;
+        match state.remote_interest {
+            Interest::NotInterested => {
+                return Err(InvalidInput);
+            }
+            Interest::Interested => {}
+        }
+
+        if self.have_pieces[peer_id].get(request_msg.0.index) {
+            // Peer said it already had this piece
+            // tracing::trace!(?peer_id, "peer is requesting a piece it already has");
+            return Err(InvalidInput);
+        }
+
+        Ok(())
+    }
+
+    /// Returns the [Writer] for a peer.
+    #[must_use]
+    #[inline]
+    pub fn get_writer(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> Writer<'_> {
+        Writer {
+            state: &mut self.state[peer_id.clone()],
+            peer_have_pieces: &mut self.have_pieces[peer_id],
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<PeerGen, PeerIndex> Session<PeerGen, PeerIndex> {
+    /// Inserts a peer into the session.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the [`SessionId`][cloudburst::peer::SessionId] could not be allocated.
+    ///
+    /// # Panics
+    ///
+    /// Panics if memory cannot be allocated.
+    pub fn insert(
+        &mut self,
+        reserved_bytes: ReservedBytes,
+        id: Id,
+        max_index: Index,
+        read_timeout: Duration,
+        write_timeout: Duration,
+        now: Instant,
+    ) -> Result<SessionId<PeerGen, PeerIndex>, CouldNotAllocateId>
+    where
+        PeerGen: Clone + Default + PartialOrd,
+        PeerIndex: Clone + Into<usize> + Incrementable,
+    {
+        let peer_id = self.id_alloc.alloc().ok_or(CouldNotAllocateId)?;
+
+        self.reserved_bytes
+            .set_or_push(peer_id.clone(), reserved_bytes)
+            .unwrap();
+        self.id.set_or_push(peer_id.clone(), id).unwrap();
+        self.state
+            .set_or_push(
+                peer_id.clone(),
+                State::new(now, read_timeout, write_timeout),
+            )
+            .unwrap();
+
+        if let Ok(have_pieces) = self.have_pieces.get_mut(peer_id.clone()) {
+            have_pieces.clear_with_max_index(max_index);
+        } else {
+            self.have_pieces
+                .set_or_push(peer_id.clone(), IndexBitfield::with_max_index(max_index))
+                .unwrap();
+        }
+
+        Ok(peer_id)
+    }
+
+    /// Removes a peer from the session.
+    ///
+    /// Returns the next generation of the peer ID. The next generation can be
+    /// used to increase the generation of any generational index vector using
+    /// the peer ID as a generational index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the peer ID is invalid.
+    pub fn remove(
+        &mut self,
+        peer_id: SessionId<PeerGen, PeerIndex>,
+    ) -> Option<&SessionId<PeerGen, PeerIndex>>
+    where
+        PeerGen: Clone + Incrementable,
+        PeerIndex: Clone + Into<usize>,
+    {
+        if self.state[peer_id.clone()].remote_unchoked_and_interested() {
+            self.unchoked_and_interested_count =
+                self.unchoked_and_interested_count.checked_sub(1).unwrap();
+        }
+
+        let next_gen_id = self.id_alloc.dealloc(peer_id);
+        if let Some(next_gen_id) = next_gen_id {
+            self.reserved_bytes
+                .set_next_gen(next_gen_id.clone())
+                .unwrap();
+            self.id.set_next_gen(next_gen_id.clone()).unwrap();
+            self.state.set_next_gen(next_gen_id.clone()).unwrap();
+            self.have_pieces.set_next_gen(next_gen_id.clone()).unwrap();
+        }
+
+        next_gen_id
     }
 }
