@@ -41,6 +41,9 @@ bitvec = { version = "1.0", default-features = false }
 
 gen_value = { version = "0.6", default-features = false }
 
+[dev-dependencies]
+hex-literal = "0.3.4"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

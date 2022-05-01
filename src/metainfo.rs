@@ -422,33 +422,7 @@ impl From<InfoHash> for [u8; 20] {
     }
 }
 
-impl fmt::Debug for InfoHash {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct InfoHashDebug<'a>(&'a [u8; 20]);
-
-        impl<'a> fmt::Debug for InfoHashDebug<'a> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                for b in self.0.iter() {
-                    write!(f, "{:02x}", b)?;
-                }
-                Ok(())
-            }
-        }
-
-        f.debug_tuple("InfoHash")
-            .field(&InfoHashDebug(&self.0))
-            .finish()
-    }
-}
-
-impl fmt::Display for InfoHash {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for b in &self.0 {
-            write!(f, "{:02x}", b)?;
-        }
-        Ok(())
-    }
-}
+fmt_byte_array!(InfoHash);
 
 impl serde::Serialize for InfoHash {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -538,4 +512,40 @@ pub fn from_slice(buf: &[u8]) -> Result<(InfoHash, Metainfo), Error> {
     let metainfo: Metainfo = bt_bencode::from_value(torrent_value)?;
 
     Ok((info_hash, metainfo))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_formats() {
+        let info_hash = InfoHash(hex_literal::hex!(
+            "8EFA979AD7627693BA91D48E941F025BAE78CB77"
+        ));
+        assert_eq!(
+            format!("{:X}", info_hash),
+            "8EFA979AD7627693BA91D48E941F025BAE78CB77"
+        );
+        assert_eq!(
+            format!("{:#X}", info_hash),
+            "0x8EFA979AD7627693BA91D48E941F025BAE78CB77"
+        );
+        assert_eq!(
+            format!("{:x}", info_hash),
+            "8efa979ad7627693ba91d48e941f025bae78cb77"
+        );
+        assert_eq!(
+            format!("{:#x}", info_hash),
+            "0x8efa979ad7627693ba91d48e941f025bae78cb77"
+        );
+        assert_eq!(
+            format!("{:b}", info_hash),
+            "10001110111110101001011110011010110101111100010111011010010011101110101001000111010100100011101001010011111101011011101011101111000110010111110111"
+        );
+        assert_eq!(
+            format!("{:#b}", info_hash),
+            "0b10001110111110101001011110011010110101111100010111011010010011101110101001000111010100100011101001010011111101011011101011101111000110010111110111"
+        );
+    }
 }
