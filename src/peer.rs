@@ -70,31 +70,7 @@ impl From<Id> for [u8; 20] {
     }
 }
 
-impl fmt::Debug for Id {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct IdDebug<'a>(&'a [u8; 20]);
-
-        impl<'a> fmt::Debug for IdDebug<'a> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                for b in self.0.iter() {
-                    write!(f, "{:02x}", b)?;
-                }
-                Ok(())
-            }
-        }
-
-        f.debug_tuple("Id").field(&IdDebug(&self.0)).finish()
-    }
-}
-
-impl fmt::Display for Id {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for b in &self.0 {
-            write!(f, "{:02x}", b)?;
-        }
-        Ok(())
-    }
-}
+fmt_byte_array!(Id);
 
 /// A local peer's ID.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]

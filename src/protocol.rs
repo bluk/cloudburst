@@ -26,25 +26,6 @@ pub const PROTOCOL_STRING_BYTES: [u8; 20] = *b"\x13BitTorrent protocol";
 #[derive(Default, Clone, Copy, PartialEq)]
 pub struct ReservedBytes([u8; 8]);
 
-impl fmt::Debug for ReservedBytes {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct ReservedBytesDebug<'a>(&'a [u8; 8]);
-
-        impl<'a> fmt::Debug for ReservedBytesDebug<'a> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                for b in self.0.iter() {
-                    write!(f, "{:02x}", b)?;
-                }
-                Ok(())
-            }
-        }
-
-        f.debug_tuple("ReservedBytes")
-            .field(&ReservedBytesDebug(&self.0))
-            .finish()
-    }
-}
-
 impl AsRef<[u8]> for ReservedBytes {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -68,6 +49,8 @@ impl From<&[u8; 8]> for ReservedBytes {
         Self(*other)
     }
 }
+
+fmt_byte_array!(ReservedBytes);
 
 /// Message frame.
 ///
