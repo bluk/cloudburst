@@ -355,3 +355,5 @@ mod sealed {
 }
 
 pub mod error;
+pub mod ping;
+pub mod ser;
