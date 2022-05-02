@@ -16,6 +16,8 @@ use serde_bytes::{ByteBuf, Bytes};
 use alloc::collections::BTreeMap;
 
 #[cfg(feature = "std")]
+use crate::dht::node::AddrId;
+#[cfg(feature = "std")]
 use std::{
     collections::BTreeMap,
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6},
@@ -342,6 +344,62 @@ impl CompactAddrV6Info for SocketAddrV6 {
     }
 }
 
+#[cfg(feature = "std")]
+fn decode_addr_ipv4_list<B>(nodes: B) -> Result<Vec<AddrId<SocketAddrV4>>, Error>
+where
+    B: AsRef<[u8]>,
+{
+    let nodes = nodes.as_ref();
+
+    if nodes.len() % 26 != 0 {
+        return Err(Error::is_deserialize_error());
+    }
+
+    let addr_len = nodes.len() / 26;
+    Ok((0..addr_len)
+        .map(|i| {
+            let offset = i * 26;
+
+            let mut id: [u8; 20] = [0; 20];
+            id.copy_from_slice(&nodes[offset..offset + 20]);
+            let id = Id::from(id);
+
+            let mut compact_addr: [u8; 6] = [0; 6];
+            compact_addr.copy_from_slice(&nodes[offset + 20..offset + 26]);
+            AddrId::new(SocketAddrV4::from_compact_addr(compact_addr), id)
+        })
+        .collect::<Vec<_>>())
+}
+
+#[cfg(feature = "std")]
+fn decode_addr_ipv6_list<B>(nodes6: B) -> Result<Vec<AddrId<SocketAddrV6>>, Error>
+where
+    B: AsRef<[u8]>,
+{
+    let nodes6 = nodes6.as_ref();
+
+    if nodes6.len() % 38 != 0 {
+        return Err(Error::is_deserialize_error());
+    }
+
+    let addr_len = nodes6.len() / 38;
+    Ok((0..addr_len)
+        .map(|i| {
+            let offset = i * 38;
+
+            let mut id: [u8; 20] = [0; 20];
+            id.copy_from_slice(&nodes6[offset..offset + 20]);
+            let id = Id::from(id);
+
+            let mut compact_addr: [u8; 18] = [0; 18];
+            compact_addr.copy_from_slice(&nodes6[offset + 20..offset + 38]);
+            let addr = SocketAddrV6::from_compact_addr(compact_addr);
+
+            AddrId::new(addr, id)
+        })
+        .collect::<Vec<_>>())
+}
+
 mod sealed {
     #[cfg(feature = "std")]
     use std::net::{SocketAddrV4, SocketAddrV6};
@@ -355,5 +413,6 @@ mod sealed {
 }
 
 pub mod error;
+pub mod find_node;
 pub mod ping;
 pub mod ser;
