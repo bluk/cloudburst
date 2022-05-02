@@ -412,6 +412,7 @@ mod sealed {
     impl Private for SocketAddrV4 {}
 }
 
+pub mod announce_peer;
 pub mod error;
 pub mod find_node;
 pub mod ping;
