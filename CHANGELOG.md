@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.0.3] - 2022-05-31
+
+### Fixed
+
+- Fix documentation for peer module types
+
+### Changed
+
+- Add `InfoHash` fmt implementations
+
+- Add `Id` and `ReservedBytes` fmt implementations
+
+- Add `const`, `#[must]`, and `#[inline]` to various types
+
+- Add `pub` to stable newtypes
+
+### Added
+
+- Add DHT Node `Id` and `CompactAddress` types
+
+- Add KRPC traits and common message types for error, ping, find_node,
+  announce_peer and get_peers
+
+- Add KRPC transaction `Id` and collection types
+
+- Add DHT Routing types to manage known nodes
+
 ## [0.0.2] - 2022-04-27
 
 ### Fixed
@@ -86,6 +113,7 @@
 
 - Initial release
 
-[Unreleased]: https://github.com/bluk/gen_value/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/bluk/gen_value/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/bluk/gen_value/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/bluk/gen_value/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/bluk/gen_value/releases/tag/v0.0.1
