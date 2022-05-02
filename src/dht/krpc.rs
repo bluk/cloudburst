@@ -38,6 +38,13 @@ impl Error {
             kind: ErrorKind::CannotDeserializeKrpcMessage,
         }
     }
+
+    #[allow(dead_code)]
+    pub(crate) const fn is_invalid_compact_addr() -> Self {
+        Self {
+            kind: ErrorKind::InvalidCompactAddr,
+        }
+    }
 }
 
 impl From<bt_bencode::Error> for Error {
@@ -60,6 +67,7 @@ impl fmt::Display for Error {
                 f.write_str("cannot deserialize KRPC message")
             }
             ErrorKind::CannotSerializeKrpcMessage => f.write_str("cannot serialize KRPC message"),
+            ErrorKind::InvalidCompactAddr => f.write_str("invalid compact address"),
         }
     }
 }
@@ -68,6 +76,8 @@ impl fmt::Display for Error {
 enum ErrorKind {
     CannotDeserializeKrpcMessage,
     CannotSerializeKrpcMessage,
+    #[allow(dead_code)]
+    InvalidCompactAddr,
 }
 
 /// Type of KRPC message.
@@ -415,5 +425,6 @@ mod sealed {
 pub mod announce_peer;
 pub mod error;
 pub mod find_node;
+pub mod get_peers;
 pub mod ping;
 pub mod ser;
