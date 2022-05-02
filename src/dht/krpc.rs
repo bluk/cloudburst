@@ -9,7 +9,7 @@
 //! KRPC messages are the protocol messages exchanged.
 
 use bt_bencode::Value;
-use core::convert::TryFrom;
+use core::{convert::TryFrom, fmt};
 use serde_bytes::{ByteBuf, Bytes};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
@@ -22,6 +22,51 @@ use std::{
 };
 
 use crate::dht::node::Id;
+
+/// Error for KRPC protocol.
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug)]
+pub struct Error {
+    kind: ErrorKind,
+}
+
+impl Error {
+    pub(crate) const fn is_deserialize_error() -> Self {
+        Self {
+            kind: ErrorKind::CannotDeserializeKrpcMessage,
+        }
+    }
+}
+
+impl From<bt_bencode::Error> for Error {
+    fn from(e: bt_bencode::Error) -> Self {
+        match e {
+            bt_bencode::Error::Serialize(_) => Self {
+                kind: ErrorKind::CannotSerializeKrpcMessage,
+            },
+            _ => Self {
+                kind: ErrorKind::CannotDeserializeKrpcMessage,
+            },
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind {
+            ErrorKind::CannotDeserializeKrpcMessage => {
+                f.write_str("cannot deserialize KRPC message")
+            }
+            ErrorKind::CannotSerializeKrpcMessage => f.write_str("cannot serialize KRPC message"),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum ErrorKind {
+    CannotDeserializeKrpcMessage,
+    CannotSerializeKrpcMessage,
+}
 
 /// Type of KRPC message.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -308,3 +353,5 @@ mod sealed {
     #[cfg(feature = "std")]
     impl Private for SocketAddrV4 {}
 }
+
+pub mod error;
