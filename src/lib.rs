@@ -95,6 +95,7 @@ macro_rules! fmt_byte_array {
 }
 
 pub mod conn;
+pub mod dht;
 pub mod metainfo;
 pub mod peer;
 pub mod piece;

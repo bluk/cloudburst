@@ -518,6 +518,12 @@ pub fn from_slice(buf: &[u8]) -> Result<(InfoHash, Metainfo), Error> {
 mod tests {
     use super::*;
 
+    #[cfg(all(feature = "alloc", not(feature = "std")))]
+    use alloc::format;
+
+    #[cfg(feature = "std")]
+    use std::format;
+
     #[test]
     fn test_formats() {
         let info_hash = InfoHash(hex_literal::hex!(

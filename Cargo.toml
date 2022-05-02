@@ -21,9 +21,9 @@ include = [
 [features]
 default = ["std"]
 
-std = ["bt_bencode/std", "gen_value/std", "serde/std", "serde_bytes/std", "bytes/std", "bitvec/std", "bitvec/atomic"]
+std = ["bt_bencode/std", "gen_value/std", "serde/std", "serde_bytes/std", "bytes/std", "bitvec/std", "bitvec/atomic", "rand/std", "rand/std_rng" ]
 
-alloc = ["bt_bencode/alloc", "gen_value/alloc", "serde/alloc", "serde_bytes/alloc", "bitvec/alloc", "bitvec/atomic"]
+alloc = ["bt_bencode/alloc", "gen_value/alloc", "serde/alloc", "serde_bytes/alloc", "bitvec/alloc", "bitvec/atomic", "rand/alloc" ]
 
 [dependencies]
 thiserror = "1.0"
@@ -41,8 +41,14 @@ bitvec = { version = "1.0", default-features = false }
 
 gen_value = { version = "0.6", default-features = false }
 
+crc32c = "0.6"
+
+rand = { version = "0.8", default-features = false }
+
 [dev-dependencies]
 hex-literal = "0.3.4"
+quickcheck = "1"
+quickcheck_macros = "1"
 
 [package.metadata.docs.rs]
 all-features = true
