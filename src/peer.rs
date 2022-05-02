@@ -688,7 +688,7 @@ pub struct InvalidInput;
 ///
 /// Any peer related event usually will require interaction with the session.
 /// After handshakes are exchanged with a peer, the peer can be inserted into the
-/// session and a peer [`SessionId`][cloudburst::peer::SessionId] is returned.
+/// session and a peer [`SessionId`] is returned.
 ///
 /// The `SessionId` is valid until the peer is removed from the session.
 /// All methods must be called with a valid `SessionId`.
@@ -717,7 +717,7 @@ pub struct InvalidInput;
 ///
 /// The state which is kept by the session include:
 ///
-/// * [`Id`][peer::Id] and [`ReservedBytes`][ReservedBytes] from the handshake.
+/// * [`Id`] and [`ReservedBytes`] from the handshake.
 /// * The [`Choke`] and [`Interest`] state for and from the peer
 /// * The pieces which the remote peer has
 /// * The read and write timeout deadlines
@@ -795,7 +795,7 @@ where
         self.reserved_bytes[peer_id]
     }
 
-    /// Returns the [`Id`][peer::Id] received during the connection handshake.
+    /// Returns the [`Id`] received during the connection handshake.
     ///
     /// # Panics
     ///
@@ -1264,7 +1264,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the [`SessionId`][cloudburst::peer::SessionId] could not be allocated.
+    /// Returns an error if the [`SessionId`] could not be allocated.
     ///
     /// # Panics
     ///
