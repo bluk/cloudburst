@@ -428,3 +428,4 @@ pub mod find_node;
 pub mod get_peers;
 pub mod ping;
 pub mod ser;
+pub mod transaction;
