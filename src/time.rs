@@ -11,7 +11,7 @@
 use core::{ops::Add, time::Duration};
 
 /// A trait for the equivalent of [`Instant`][std::time::Instant].
-pub trait Instant: Clone + PartialOrd + Add<Duration, Output = Self> {
+pub trait Instant: Clone + Ord + Add<Duration, Output = Self> {
     /// Returns the current `Instant`.
     fn now() -> Self;
 }
