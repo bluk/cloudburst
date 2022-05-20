@@ -31,6 +31,12 @@ use std::{
 pub struct Id(pub(crate) [u8; 20]);
 
 impl Id {
+    /// Instantiates a new `Id`.
+    #[must_use]
+    pub const fn new(value: [u8; 20]) -> Self {
+        Self(value)
+    }
+
     /// The minimum possible `Id`.
     #[must_use]
     pub const fn min() -> Id {

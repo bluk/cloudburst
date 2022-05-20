@@ -14,3 +14,4 @@
 
 pub mod krpc;
 pub mod node;
+pub mod routing;
