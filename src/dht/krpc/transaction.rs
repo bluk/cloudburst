@@ -212,37 +212,38 @@ impl<Addr, TxId, Instant> Default for Transactions<Addr, TxId, Instant> {
 
 impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     /// Inserts a transaction into the collection.
-    pub fn insert(&mut self, tx: Transaction<Addr, TxId, Instant>) {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the transaction ID matches an existing transaction ID.
+    pub fn insert(&mut self, tx: Transaction<Addr, TxId, Instant>)
+    where
+        TxId: PartialEq,
+    {
+        assert!(!self.contains(&tx.tx_id));
         self.txs.push(tx);
     }
 
-    /// Removes a transaction given a transaction ID and a socket address.
+    /// Removes a transaction given a transaction ID.
     ///
-    /// A transaction must match both the transaction ID and the socket address to be removed.
-    ///
-    /// Returns the transaction if a matching transaction is found. Returns `None` if there is no matching transaction.
-    pub fn remove(&mut self, addr: &Addr, tx_id: &TxId) -> Option<Transaction<Addr, TxId, Instant>>
+    /// Returns the transaction if a matching transaction is found. Returns
+    /// `None` if there is no matching transaction.
+    pub fn remove(&mut self, tx_id: &TxId) -> Option<Transaction<Addr, TxId, Instant>>
     where
-        Addr: PartialEq,
         TxId: PartialEq,
     {
-        if let Some(idx) = self
-            .txs
+        self.txs
             .iter()
-            .position(|t| t.tx_id == *tx_id && *t.addr_opt_id.addr() == *addr)
-        {
-            Some(self.txs.remove(idx))
-        } else {
-            None
-        }
+            .position(|t| t.tx_id == *tx_id)
+            .map(|index| self.txs.remove(index))
     }
 
-    /// Returns true if there is a transaction which has the given transaction ID.
-    pub fn contains_tx_id(&self, tx_id: &TxId) -> bool
+    /// Returns true if there is a transaction which has the given transaction ID .
+    pub fn contains(&self, tx_id: &TxId) -> bool
     where
         TxId: PartialEq,
     {
-        self.txs.iter().any(|tx| *tx_id == tx.tx_id)
+        self.txs.iter().any(|tx| tx.tx_id == *tx_id)
     }
 
     /// The number of transactions.
@@ -282,9 +283,6 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
 
     /// Proceses a received response message.
     ///
-    /// `addr` is the address which the message was received from (usually a
-    /// socket address).
-    ///
     /// `msg` is the received response message.
     ///
     /// When `is_queried_node_id_strictly_checked` is set to `true`, the method
@@ -312,7 +310,6 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     /// [`Transactions::remove()`] method.
     pub fn on_recv_resp(
         &mut self,
-        addr: &Addr,
         msg: &dyn RespMsg,
         is_queried_node_id_strictly_checked: bool,
         local_id: LocalId,
@@ -324,7 +321,7 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
         if let Some(tx) = msg
             .tx_id()
             .and_then(|tx_id| TxId::try_from(tx_id).ok())
-            .and_then(|tx_id| self.remove(addr, &tx_id))
+            .and_then(|tx_id| self.remove(&tx_id))
         {
             let queried_node_id = RespMsg::queried_node_id(msg);
             let is_response_queried_id_valid =
@@ -348,9 +345,6 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
 
     /// Proceses a received error message.
     ///
-    /// `addr` is the address which the message was received from (usually a
-    /// socket address).
-    ///
     /// `msg` is the received error message.
     ///
     /// # Errors
@@ -358,7 +352,6 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     /// Errors are returned if there is no associated transaction found.
     pub fn on_recv_error(
         &mut self,
-        addr: &Addr,
         msg: &dyn ErrorMsg,
     ) -> Result<Transaction<Addr, TxId, Instant>, Error>
     where
@@ -367,7 +360,7 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     {
         msg.tx_id()
             .and_then(|tx_id| TxId::try_from(tx_id).ok())
-            .and_then(|tx_id| self.remove(addr, &tx_id))
+            .and_then(|tx_id| self.remove(&tx_id))
             .ok_or_else(Error::unknown_tx)
     }
 }
