@@ -45,18 +45,17 @@ pub struct QueryArgs {
 
 impl QueryArgs {
     /// Instantiates a new query message.
-    pub fn new<L>(
-        id: L,
+    #[must_use]
+    #[inline]
+    pub const fn new(
+        id: LocalId,
         info_hash: InfoHash,
         token: Vec<u8>,
         port: Option<u16>,
         implied_port: Option<bool>,
-    ) -> Self
-    where
-        L: Into<LocalId>,
-    {
+    ) -> Self {
         Self {
-            id: Id::from(id.into()),
+            id: Id::new((id.0).0),
             info_hash,
             token,
             port,
@@ -65,53 +64,59 @@ impl QueryArgs {
     }
 
     /// Sets the querying node ID in the arguments.
-    pub fn set_id<I>(&mut self, id: I)
-    where
-        I: Into<LocalId>,
-    {
-        self.id = Id::from(id.into());
+    #[inline]
+    pub fn set_id(&mut self, id: LocalId) {
+        self.id = Id::new((id.0).0);
     }
 
     /// Returns the `InfoHash` for the relevant torrent.
     #[must_use]
-    pub fn info_hash(&self) -> InfoHash {
+    #[inline]
+    pub const fn info_hash(&self) -> InfoHash {
         self.info_hash
     }
 
     /// Sets the `InfoHash` for the relevant torrent.
+    #[inline]
     pub fn set_info_hash(&mut self, info_hash: InfoHash) {
         self.info_hash = info_hash;
     }
 
     /// Returns the token which is used by the queried node for verification.
     #[must_use]
+    #[inline]
     pub fn token(&self) -> &[u8] {
         &self.token
     }
 
     /// Sets the token which is used by the queried node for verification.
+    #[inline]
     pub fn set_token(&mut self, token: Vec<u8>) {
         self.token = token;
     }
 
     /// Returns the port which peers in the torrent should connect to.
     #[must_use]
-    pub fn port(&self) -> Option<u16> {
+    #[inline]
+    pub const fn port(&self) -> Option<u16> {
         self.port
     }
 
     /// Sets the port which peers in the torrent should connect to.
+    #[inline]
     pub fn set_port(&mut self, port: Option<u16>) {
         self.port = port;
     }
 
     /// Returns if the port should be implied from the querying node's DHT sending port.
     #[must_use]
-    pub fn implied_port(&self) -> Option<bool> {
+    #[inline]
+    pub const fn implied_port(&self) -> Option<bool> {
         self.implied_port
     }
 
     /// Sets if the port should be implied from the querying node's DHT sending port.
+    #[inline]
     pub fn set_implied_port(&mut self, implied_port: Option<bool>) {
         self.implied_port = implied_port;
     }
@@ -228,21 +233,18 @@ pub struct RespValues {
 
 impl RespValues {
     /// Instantiates a new instance.
-    pub fn new<L>(id: L) -> Self
-    where
-        L: Into<LocalId>,
-    {
+    #[must_use]
+    #[inline]
+    pub const fn new(id: LocalId) -> Self {
         Self {
-            id: id.into().into(),
+            id: Id::new((id.0).0),
         }
     }
 
     /// Sets the queried node Id.
-    pub fn set_id<I>(&mut self, id: I)
-    where
-        I: Into<LocalId>,
-    {
-        self.id = Id::from(id.into());
+    #[inline]
+    pub fn set_id(&mut self, id: LocalId) {
+        self.id = Id::new((id.0).0);
     }
 }
 

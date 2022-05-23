@@ -35,21 +35,18 @@ pub struct QueryArgs {
 
 impl QueryArgs {
     /// Instantiates a new query message.
-    pub fn new<L>(id: L) -> Self
-    where
-        L: Into<LocalId>,
-    {
+    #[must_use]
+    #[inline]
+    pub const fn new(id: LocalId) -> Self {
         Self {
-            id: Id::from(id.into()),
+            id: Id::new((id.0).0),
         }
     }
 
     /// Sets the querying node ID in the arguments.
-    pub fn set_id<I>(&mut self, id: I)
-    where
-        I: Into<LocalId>,
-    {
-        self.id = Id::from(id.into());
+    #[inline]
+    pub fn set_id(&mut self, id: LocalId) {
+        self.id = Id::new((id.0).0);
     }
 }
 
@@ -124,21 +121,18 @@ pub struct RespValues {
 
 impl RespValues {
     /// Instantiates a new instance.
-    pub fn new<L>(id: L) -> Self
-    where
-        L: Into<LocalId>,
-    {
+    #[must_use]
+    #[inline]
+    pub const fn new(id: LocalId) -> Self {
         Self {
-            id: Id::from(id.into()),
+            id: Id::new((id.0).0),
         }
     }
 
     /// Sets the queried node Id.
-    pub fn set_id<I>(&mut self, id: I)
-    where
-        I: Into<LocalId>,
-    {
-        self.id = Id::from(id.into());
+    #[inline]
+    pub fn set_id(&mut self, id: LocalId) {
+        self.id = Id::new((id.0).0);
     }
 }
 

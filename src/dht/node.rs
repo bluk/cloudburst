@@ -83,10 +83,15 @@ impl Id {
     /// # Ok::<_, std::io::Error>(())
     /// ```
     #[must_use]
-    pub fn distance(&self, other: Id) -> Id {
+    pub const fn distance(&self, other: Id) -> Id {
         let mut data = [0; 20];
-        for (idx, val) in self.0.iter().enumerate() {
-            data[idx] = val ^ other.0[idx];
+        let mut idx = 0;
+        loop {
+            data[idx] = self.0[idx] ^ other.0[idx];
+            if idx == 19 {
+                break;
+            }
+            idx += 1;
         }
         Id(data)
     }
@@ -182,7 +187,7 @@ pub struct LocalId(pub(crate) Id);
 impl LocalId {
     /// Constructs a new `LocalId` from an existing `Id`.
     #[must_use]
-    pub fn new(id: Id) -> Self {
+    pub const fn new(id: Id) -> Self {
         Self(id)
     }
 }
@@ -249,17 +254,17 @@ impl<A> AddrId<A> {
     /// # }
     /// # Ok::<_, std::io::Error>(())
     /// ```
-    pub fn new(addr: A, id: Id) -> Self {
+    pub const fn new(addr: A, id: Id) -> Self {
         Self { addr, id }
     }
 
     /// Returns the network address.
-    pub fn addr(&self) -> &A {
+    pub const fn addr(&self) -> &A {
         &self.addr
     }
 
     /// Returns the node Id.
-    pub fn id(&self) -> Id {
+    pub const fn id(&self) -> Id {
         self.id
     }
 }
@@ -359,7 +364,7 @@ impl<A> AddrOptId<A> {
     /// # }
     /// # Ok::<_, std::io::Error>(())
     /// ```
-    pub fn new(addr: A, id: Option<Id>) -> Self {
+    pub const fn new(addr: A, id: Option<Id>) -> Self {
         Self { addr, id }
     }
 
@@ -381,17 +386,17 @@ impl<A> AddrOptId<A> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn with_addr(addr: A) -> Self {
+    pub const fn with_addr(addr: A) -> Self {
         Self { addr, id: None }
     }
 
     /// Returns the network address.
-    pub fn addr(&self) -> &A {
+    pub const fn addr(&self) -> &A {
         &self.addr
     }
 
     /// Returns the optional node Id.
-    pub fn id(&self) -> Option<Id> {
+    pub const fn id(&self) -> Option<Id> {
         self.id
     }
 }

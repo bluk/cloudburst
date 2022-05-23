@@ -46,37 +46,32 @@ pub struct QueryArgs {
 
 impl QueryArgs {
     /// Instantiates a new query message with the local querying node Id and the target Id.
-    pub fn new<L, T>(id: L, target: T) -> Self
-    where
-        L: Into<LocalId>,
-        T: Into<Id>,
-    {
+    #[must_use]
+    #[inline]
+    pub const fn new(id: LocalId, target: Id) -> Self {
         Self {
-            id: id.into().into(),
-            target: target.into(),
+            id: Id::new((id.0).0),
+            target,
         }
     }
 
     /// Sets the querying node ID in the arguments.
-    pub fn set_id<I>(&mut self, id: I)
-    where
-        I: Into<LocalId>,
-    {
-        self.id = id.into().into();
+    #[inline]
+    pub fn set_id(&mut self, id: LocalId) {
+        self.id = Id::new((id.0).0);
     }
 
     /// Returns the target Id.
     #[must_use]
-    pub fn target(&self) -> Id {
+    #[inline]
+    pub const fn target(&self) -> Id {
         self.target
     }
 
     /// Sets the target Id.
-    pub fn set_target<I>(&mut self, target: I)
-    where
-        I: Into<Id>,
-    {
-        self.target = target.into();
+    #[inline]
+    pub fn set_target(&mut self, target: Id) {
+        self.target = target;
     }
 }
 
@@ -166,44 +161,47 @@ pub struct RespValues {
 impl RespValues {
     /// Instantiates a new instance.
     #[must_use]
-    pub fn with_id_and_nodes_and_nodes6(
+    #[inline]
+    pub const fn with_id_and_nodes_and_nodes6(
         id: LocalId,
         nodes: Option<Vec<AddrId<SocketAddrV4>>>,
         nodes6: Option<Vec<AddrId<SocketAddrV6>>>,
     ) -> Self {
         Self {
-            id: Id::from(id),
+            id: Id::new((id.0).0),
             nodes,
             nodes6,
         }
     }
 
     /// Sets the queried node Id.
-    pub fn set_id<I>(&mut self, id: I)
-    where
-        I: Into<Id>,
-    {
-        self.id = id.into();
+    #[inline]
+    pub fn set_id(&mut self, id: Id) {
+        self.id = id;
     }
 
     /// Returns the IPv4 nodes.
     #[must_use]
-    pub fn nodes(&self) -> Option<&Vec<AddrId<SocketAddrV4>>> {
+    #[inline]
+    pub const fn nodes(&self) -> Option<&Vec<AddrId<SocketAddrV4>>> {
         self.nodes.as_ref()
     }
 
     /// Sets the IPv4 nodes.
+    #[inline]
     pub fn set_nodes(&mut self, nodes: Option<Vec<AddrId<SocketAddrV4>>>) {
         self.nodes = nodes;
     }
 
     /// Returns the IPv6 nodes.
     #[must_use]
-    pub fn nodes6(&self) -> Option<&Vec<AddrId<SocketAddrV6>>> {
+    #[inline]
+    pub const fn nodes6(&self) -> Option<&Vec<AddrId<SocketAddrV6>>> {
         self.nodes6.as_ref()
     }
 
     /// Sets the IPv6 nodes.
+    #[inline]
     pub fn set_nodes6(&mut self, nodes6: Option<Vec<AddrId<SocketAddrV6>>>) {
         self.nodes6 = nodes6;
     }

@@ -94,7 +94,9 @@ where
 
 impl<Addr, TxId, Instant> Transaction<Addr, TxId, Instant> {
     /// Instantiates a new `Transaction`.
-    pub fn new(addr_opt_id: AddrOptId<Addr>, tx_id: TxId, timeout_deadline: Instant) -> Self {
+    #[must_use]
+    #[inline]
+    pub const fn new(addr_opt_id: AddrOptId<Addr>, tx_id: TxId, timeout_deadline: Instant) -> Self {
         Self {
             addr_opt_id,
             tx_id,
@@ -105,21 +107,21 @@ impl<Addr, TxId, Instant> Transaction<Addr, TxId, Instant> {
     /// Returns the address associated with the transaction.
     #[must_use]
     #[inline]
-    pub fn addr_opt_id(&self) -> &AddrOptId<Addr> {
+    pub const fn addr_opt_id(&self) -> &AddrOptId<Addr> {
         &self.addr_opt_id
     }
 
     /// Returns the transaction ID associated with the transaction.
     #[must_use]
     #[inline]
-    pub fn tx_id(&self) -> &TxId {
+    pub const fn tx_id(&self) -> &TxId {
         &self.tx_id
     }
 
     /// Returns the timeout deadline.
     #[must_use]
     #[inline]
-    pub fn timeout_deadline(&self) -> &Instant {
+    pub const fn timeout_deadline(&self) -> &Instant {
         &self.timeout_deadline
     }
 }
@@ -133,7 +135,9 @@ pub struct Error {
 }
 
 impl Error {
-    fn unknown_tx() -> Self {
+    #[must_use]
+    #[inline]
+    const fn unknown_tx() -> Self {
         Self {
             kind: ErrorKind::UnknownTx,
         }
@@ -141,11 +145,14 @@ impl Error {
 
     /// If the message does not match an existing transaction.
     #[must_use]
-    pub fn is_unknown_tx(&self) -> bool {
+    #[inline]
+    pub const fn is_unknown_tx(&self) -> bool {
         matches!(self.kind, ErrorKind::UnknownTx)
     }
 
-    fn invalid_queried_node_id() -> Self {
+    #[must_use]
+    #[inline]
+    const fn invalid_queried_node_id() -> Self {
         Self {
             kind: ErrorKind::InvalidQueriedNodeId,
         }
@@ -153,7 +160,8 @@ impl Error {
 
     /// If the message has an invalid queried node ID.
     #[must_use]
-    pub fn is_invalid_queried_node_id(&self) -> bool {
+    #[inline]
+    pub const fn is_invalid_queried_node_id(&self) -> bool {
         matches!(self.kind, ErrorKind::InvalidQueriedNodeId)
     }
 }
@@ -179,19 +187,22 @@ pub struct ReadEvent<Addr, TxId> {
 impl<Addr, TxId> ReadEvent<Addr, TxId> {
     /// Returns the relevant node's network address and optional Id.
     #[must_use]
-    pub fn addr_opt_id(&self) -> &AddrOptId<Addr> {
+    #[inline]
+    pub const fn addr_opt_id(&self) -> &AddrOptId<Addr> {
         &self.addr_opt_id
     }
 
     /// Returns the relevant local transaction Id if the event is related to a query sent by the local node.
     #[must_use]
-    pub fn tx_id(&self) -> Option<&TxId> {
+    #[inline]
+    pub const fn tx_id(&self) -> Option<&TxId> {
         self.tx_id.as_ref()
     }
 
     /// Returns the message which may contain a query, response, or error.
     #[must_use]
-    pub fn msg(&self) -> &Value {
+    #[inline]
+    pub const fn msg(&self) -> &Value {
         &self.msg
     }
 }
@@ -204,18 +215,24 @@ pub struct Transactions<Addr, TxId, Instant> {
 
 impl<Addr, TxId, Instant> Default for Transactions<Addr, TxId, Instant> {
     fn default() -> Self {
-        Self {
-            txs: Vec::default(),
-        }
+        Self::new()
     }
 }
 
 impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
+    /// Instantiates a new instance.
+    #[must_use]
+    #[inline]
+    pub const fn new() -> Self {
+        Self { txs: Vec::new() }
+    }
+
     /// Inserts a transaction into the collection.
     ///
     /// # Panics
     ///
     /// Panics if the transaction ID matches an existing transaction ID.
+    #[inline]
     pub fn insert(&mut self, tx: Transaction<Addr, TxId, Instant>)
     where
         TxId: PartialEq,
@@ -228,6 +245,7 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     ///
     /// Returns the transaction if a matching transaction is found. Returns
     /// `None` if there is no matching transaction.
+    #[inline]
     pub fn remove(&mut self, tx_id: &TxId) -> Option<Transaction<Addr, TxId, Instant>>
     where
         TxId: PartialEq,
@@ -239,6 +257,8 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     }
 
     /// Returns true if there is a transaction which has the given transaction ID .
+    #[must_use]
+    #[inline]
     pub fn contains(&self, tx_id: &TxId) -> bool
     where
         TxId: PartialEq,
@@ -248,12 +268,14 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
 
     /// The number of transactions.
     #[must_use]
+    #[inline]
     pub fn len(&self) -> usize {
         self.txs.len()
     }
 
     /// Returns true if the collection is empty.
     #[must_use]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.txs.is_empty()
     }
@@ -262,7 +284,8 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     ///
     /// Returns `None` if there are no transactions.
     #[must_use]
-    pub fn min_timeout(&self) -> Option<Instant>
+    #[inline]
+    pub fn timeout(&self) -> Option<Instant>
     where
         Instant: crate::time::Instant,
     {
@@ -270,6 +293,7 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     }
 
     /// Finds and removes a transaction which has timed out.
+    #[inline]
     pub fn pop_timed_out_tx(&mut self, now: &Instant) -> Option<Transaction<Addr, TxId, Instant>>
     where
         Instant: crate::time::Instant,

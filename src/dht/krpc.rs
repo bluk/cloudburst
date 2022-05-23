@@ -33,6 +33,8 @@ pub struct Error {
 }
 
 impl Error {
+    #[must_use]
+    #[inline]
     pub(crate) const fn is_deserialize_error() -> Self {
         Self {
             kind: ErrorKind::CannotDeserializeKrpcMessage,
@@ -40,6 +42,8 @@ impl Error {
     }
 
     #[allow(dead_code)]
+    #[must_use]
+    #[inline]
     pub(crate) const fn is_invalid_compact_addr() -> Self {
         Self {
             kind: ErrorKind::InvalidCompactAddr,
@@ -97,7 +101,8 @@ pub enum Ty<'a> {
 impl<'a> Ty<'a> {
     /// Returns the value used in a message to identify the message type.
     #[must_use]
-    pub fn val(&self) -> &'a str {
+    #[inline]
+    pub const fn val(&self) -> &'a str {
         match self {
             Ty::Query => "q",
             Ty::Response => "r",
@@ -261,7 +266,8 @@ pub enum ErrorCode {
 impl ErrorCode {
     /// The code used in a message to identify the message.
     #[must_use]
-    pub fn code(self) -> i32 {
+    #[inline]
+    pub const fn code(self) -> i32 {
         match self {
             ErrorCode::GenericError => 201,
             ErrorCode::ServerError => 202,

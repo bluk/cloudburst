@@ -53,10 +53,12 @@ where
     Instant: crate::time::Instant,
 {
     /// Creates a new `Bucket` for nodes which are within the inclusive `Id` range.
-    pub fn new(range: RangeInclusive<Id>, refresh_deadline: Instant) -> Self {
+    #[must_use]
+    #[inline]
+    pub const fn new(range: RangeInclusive<Id>, refresh_deadline: Instant) -> Self {
         Bucket {
             range,
-            nodes: Vec::default(),
+            nodes: Vec::new(),
             refresh_deadline,
         }
     }
@@ -64,7 +66,7 @@ where
     /// Returns the bucket's `Id` range.
     #[must_use]
     #[inline]
-    pub fn range(&self) -> &RangeInclusive<Id> {
+    pub const fn range(&self) -> &RangeInclusive<Id> {
         &self.range
     }
 
@@ -73,6 +75,7 @@ where
     /// # Errors
     ///
     /// Returns a [`rand::Error`] if the random number generator cannot generate a random `Id`.
+    #[must_use]
     #[inline]
     pub fn rand_id<R>(&self, rng: &mut R) -> Id
     where
@@ -82,9 +85,9 @@ where
     }
 
     /// Returns the deadline which a `Node` from within the bucket's range should be pinged or found.
-    #[inline]
     #[must_use]
-    pub fn refresh_deadline(&self) -> &Instant {
+    #[inline]
+    pub const fn refresh_deadline(&self) -> &Instant {
         &self.refresh_deadline
     }
 
@@ -211,21 +214,21 @@ mod internal {
     where
         R: rand::Rng,
     {
-        #[inline]
         #[must_use]
+        #[inline]
         fn difference(first: Id, second: Id) -> Id {
             let bigger: [u8; 20];
             let mut smaller: [u8; 20];
             if first < second {
-                bigger = <[u8; 20]>::from(second);
-                smaller = <[u8; 20]>::from(first);
+                bigger = second.0;
+                smaller = first.0;
             } else {
-                bigger = <[u8; 20]>::from(first);
-                smaller = <[u8; 20]>::from(second);
+                bigger = first.0;
+                smaller = second.0;
             }
             smaller = twos_complement(smaller);
             let (bigger, _) = overflowing_add(bigger, &smaller);
-            Id::from(bigger)
+            Id::new(bigger)
         }
 
         let data_bit_diff = difference(*range.end(), *range.start());
@@ -236,8 +239,8 @@ mod internal {
     }
 
     /// Finds the middle id between this node ID and the node ID argument.
-    #[inline]
     #[must_use]
+    #[inline]
     pub(super) const fn middle(first: Id, second: Id) -> Id {
         let data = first.0;
         let (data, overflow) = overflowing_add(data, &second.0);
@@ -295,8 +298,8 @@ mod internal {
     //     Id::new(data)
     // }
 
-    #[inline]
     #[must_use]
+    #[inline]
     pub(super) const fn next(id: Id) -> Id {
         let (data, overflowing) = overflowing_add(
             id.0,
@@ -307,8 +310,8 @@ mod internal {
         Id::new(data)
     }
 
-    #[inline]
     #[must_use]
+    #[inline]
     const fn overflowing_add(mut value: [u8; 20], other: &[u8; 20]) -> ([u8; 20], bool) {
         let mut carry_over: u8 = 0;
 
@@ -331,8 +334,8 @@ mod internal {
         (value, carry_over == 1)
     }
 
-    #[inline]
     #[must_use]
+    #[inline]
     const fn twos_complement(mut value: [u8; 20]) -> [u8; 20] {
         let mut idx = 0;
         loop {
@@ -526,7 +529,7 @@ where
     /// routing table compared to nodes which have an `Id` further away.
     #[must_use]
     #[inline]
-    pub fn pivot(&self) -> Id {
+    pub const fn pivot(&self) -> Id {
         self.pivot
     }
 

@@ -34,18 +34,21 @@ pub struct Values {
 impl Values {
     /// Instantiates a standard error value with a code and description.
     #[must_use]
-    pub fn new(code: ErrorCode, description: String) -> Self {
+    #[inline]
+    pub const fn new(code: ErrorCode, description: String) -> Self {
         Self { code, description }
     }
 }
 
 impl Values {
     /// Sets the code.
+    #[inline]
     pub fn set_code(&mut self, code: ErrorCode) {
         self.code = code;
     }
 
     /// Sets the description.
+    #[inline]
     pub fn set_description(&mut self, description: String) {
         self.description = description;
     }

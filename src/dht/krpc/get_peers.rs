@@ -53,31 +53,30 @@ pub struct QueryArgs {
 
 impl QueryArgs {
     /// Instantiates a new query message.
-    pub fn new<L>(id: L, info_hash: InfoHash) -> Self
-    where
-        L: Into<LocalId>,
-    {
+    #[must_use]
+    #[inline]
+    pub const fn new(id: LocalId, info_hash: InfoHash) -> Self {
         Self {
-            id: Id::from(id.into()),
+            id: Id::new((id.0).0),
             info_hash,
         }
     }
 
     /// Sets the querying node ID in the arguments.
-    pub fn set_id<I>(&mut self, id: I)
-    where
-        I: Into<LocalId>,
-    {
-        self.id = Id::from(id.into());
+    #[inline]
+    pub fn set_id(&mut self, id: LocalId) {
+        self.id = Id::new((id.0).0);
     }
 
     /// Returns the `InfoHash` for the relevant torrent.
     #[must_use]
-    pub fn info_hash(&self) -> InfoHash {
+    #[inline]
+    pub const fn info_hash(&self) -> InfoHash {
         self.info_hash
     }
 
     /// Sets the `InfoHash` for the relevant torrent.
+    #[inline]
     pub fn set_info_hash(&mut self, info_hash: InfoHash) {
         self.info_hash = info_hash;
     }
@@ -166,18 +165,17 @@ pub struct RespValues {
 #[cfg(feature = "std")]
 impl RespValues {
     /// Instantiates a new instance.
-    pub fn new<L>(
-        id: L,
+    #[must_use]
+    #[inline]
+    pub const fn new(
+        id: LocalId,
         token: Vec<u8>,
         values: Option<Vec<SocketAddr>>,
         nodes: Option<Vec<AddrId<SocketAddrV4>>>,
         nodes6: Option<Vec<AddrId<SocketAddrV6>>>,
-    ) -> Self
-    where
-        L: Into<LocalId>,
-    {
+    ) -> Self {
         Self {
-            id: Id::from(id.into()),
+            id: Id::new((id.0).0),
             token,
             values,
             nodes,
@@ -186,53 +184,59 @@ impl RespValues {
     }
 
     /// Sets the queried node Id.
-    pub fn set_id<I>(&mut self, id: I)
-    where
-        I: Into<LocalId>,
-    {
-        self.id = Id::from(id.into());
+    #[inline]
+    pub fn set_id(&mut self, id: LocalId) {
+        self.id = Id::new((id.0).0);
     }
 
     /// Returns an opaque token which can be used in an announce peer message.
     #[must_use]
+    #[inline]
     pub fn token(&self) -> &[u8] {
         &self.token
     }
 
     /// Sets an opaque token which can be used in an announce peer message.
+    #[inline]
     pub fn set_token(&mut self, token: Vec<u8>) {
         self.token = token;
     }
 
     /// Returns peers' socket addresses for the torrent.
     #[must_use]
-    pub fn values(&self) -> Option<&Vec<SocketAddr>> {
+    #[inline]
+    pub const fn values(&self) -> Option<&Vec<SocketAddr>> {
         self.values.as_ref()
     }
 
     /// Sets peers' socket addresses for the torrent.
+    #[inline]
     pub fn set_values(&mut self, values: Option<Vec<SocketAddr>>) {
         self.values = values;
     }
 
     /// Returns IPv4 nodes which may have more relevant information for the torrent.
     #[must_use]
-    pub fn nodes(&self) -> Option<&Vec<AddrId<SocketAddrV4>>> {
+    #[inline]
+    pub const fn nodes(&self) -> Option<&Vec<AddrId<SocketAddrV4>>> {
         self.nodes.as_ref()
     }
 
     /// Sets IPv4 nodes which may have more relevant information for the torrent.
+    #[inline]
     pub fn set_nodes(&mut self, nodes: Option<Vec<AddrId<SocketAddrV4>>>) {
         self.nodes = nodes;
     }
 
     /// Returns IPv6 nodes which may have more relevant information for the torrent.
     #[must_use]
-    pub fn nodes6(&self) -> Option<&Vec<AddrId<SocketAddrV6>>> {
+    #[inline]
+    pub const fn nodes6(&self) -> Option<&Vec<AddrId<SocketAddrV6>>> {
         self.nodes6.as_ref()
     }
 
     /// Sets IPv6 nodes which may have more relevant information for the torrent.
+    #[inline]
     pub fn set_nodes6(&mut self, nodes6: Option<Vec<AddrId<SocketAddrV6>>>) {
         self.nodes6 = nodes6;
     }
