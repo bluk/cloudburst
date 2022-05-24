@@ -13,17 +13,16 @@ use core::{convert::TryFrom, fmt};
 use serde_bytes::{ByteBuf, Bytes};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec::Vec};
 
-#[cfg(feature = "std")]
-use crate::dht::node::AddrId;
 #[cfg(feature = "std")]
 use std::{
     collections::BTreeMap,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6},
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
+    vec::Vec,
 };
 
-use crate::dht::node::Id;
+use crate::dht::node::{AddrId, Id};
 
 /// Error for KRPC protocol.
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
@@ -291,69 +290,140 @@ pub trait ErrorVal {
 }
 
 /// An IPv4 socket address representable by a compact format.
-///
-/// The trait is intended to help convert an IPv4 socket address to the compact form used in KRPC messages.
-///
-/// This trait is sealed and cannot be implemented for types outside this crate.
-pub trait CompactAddrV4Info: sealed::Private {
-    /// Returns the address encoded as a compact address.
-    fn to_compact_addr(&self) -> [u8; 6];
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CompactAddrV4([u8; 6]);
 
-    /// Converts from the compact address to the self type.
-    fn from_compact_addr(bytes: [u8; 6]) -> Self;
+impl CompactAddrV4 {
+    /// Instantiates with the given bytes.
+    #[must_use]
+    #[inline]
+    pub const fn with_bytes(value: [u8; 6]) -> Self {
+        Self(value)
+    }
+
+    /// Instantiates with the given socket address.
+    #[cfg(feature = "std")]
+    #[must_use]
+    #[inline]
+    pub fn with_socket_addr(value: SocketAddrV4) -> Self {
+        let mut a: [u8; 6] = [0; 6];
+        a[0..4].copy_from_slice(value.ip().octets().as_ref());
+        a[4..6].copy_from_slice(value.port().to_be_bytes().as_ref());
+        Self(a)
+    }
+}
+
+impl AsRef<[u8]> for CompactAddrV4 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<[u8; 6]> for CompactAddrV4 {
+    fn from(value: [u8; 6]) -> Self {
+        Self(value)
+    }
+}
+
+impl From<CompactAddrV4> for [u8; 6] {
+    fn from(value: CompactAddrV4) -> Self {
+        value.0
+    }
 }
 
 #[cfg(feature = "std")]
-impl CompactAddrV4Info for SocketAddrV4 {
-    fn to_compact_addr(&self) -> [u8; 6] {
+impl From<SocketAddrV4> for CompactAddrV4 {
+    fn from(value: SocketAddrV4) -> Self {
         let mut a: [u8; 6] = [0; 6];
-        a[0..4].copy_from_slice(&self.ip().octets());
-        a[4..6].copy_from_slice(&self.port().to_be_bytes());
-        a
+        a[0..4].copy_from_slice(&value.ip().octets());
+        a[4..6].copy_from_slice(&value.port().to_be_bytes());
+        Self(a)
     }
+}
 
-    fn from_compact_addr(bytes: [u8; 6]) -> Self {
+#[cfg(feature = "std")]
+impl From<CompactAddrV4> for SocketAddrV4 {
+    fn from(value: CompactAddrV4) -> Self {
         let mut ip: [u8; 4] = [0; 4];
-        ip[0..4].copy_from_slice(&bytes[0..4]);
+        ip[0..4].copy_from_slice(&value.0[0..4]);
         let ip = Ipv4Addr::from(ip);
 
         let mut port: [u8; 2] = [0; 2];
-        port[0..2].copy_from_slice(&bytes[4..6]);
+        port[0..2].copy_from_slice(&value.0[4..6]);
         let port = u16::from_be_bytes(port);
 
         SocketAddrV4::new(ip, port)
     }
 }
 
-/// An IPv6 socket address representable by a compact format.
-///
-/// The trait is intended to help convert an IPv6 socket address to the compact form used in KRPC messages.
-///
-/// This trait is sealed and cannot be implemented for types outside this crate.
-pub trait CompactAddrV6Info: sealed::Private {
-    /// Returns the address encoded as a compact address.
-    fn to_compact_addr(&self) -> [u8; 18];
+#[cfg(feature = "std")]
+impl From<CompactAddrV4> for SocketAddr {
+    fn from(value: CompactAddrV4) -> Self {
+        SocketAddr::V4(SocketAddrV4::from(value))
+    }
+}
 
-    /// Converts from the compact address to the self type.
-    fn from_compact_addr(bytes: [u8; 18]) -> Self;
+/// An IPv6 socket address representable by a compact format.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CompactAddrV6([u8; 18]);
+
+impl CompactAddrV6 {
+    /// Instantiates with the given bytes.
+    #[must_use]
+    #[inline]
+    pub const fn with_bytes(value: [u8; 18]) -> Self {
+        Self(value)
+    }
+
+    /// Instantiates with the given socket address.
+    #[cfg(feature = "std")]
+    #[must_use]
+    #[inline]
+    pub fn with_socket_addr(value: SocketAddrV6) -> Self {
+        let mut a: [u8; 18] = [0; 18];
+        a[0..16].copy_from_slice(value.ip().octets().as_ref());
+        a[16..18].copy_from_slice(value.port().to_be_bytes().as_ref());
+        Self(a)
+    }
+}
+
+impl AsRef<[u8]> for CompactAddrV6 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl From<[u8; 18]> for CompactAddrV6 {
+    fn from(value: [u8; 18]) -> Self {
+        Self(value)
+    }
+}
+
+impl From<CompactAddrV6> for [u8; 18] {
+    fn from(value: CompactAddrV6) -> Self {
+        value.0
+    }
 }
 
 #[cfg(feature = "std")]
-impl CompactAddrV6Info for SocketAddrV6 {
-    fn to_compact_addr(&self) -> [u8; 18] {
+impl From<SocketAddrV6> for CompactAddrV6 {
+    fn from(value: SocketAddrV6) -> Self {
         let mut a: [u8; 18] = [0; 18];
-        a[0..16].copy_from_slice(&self.ip().octets());
-        a[16..18].copy_from_slice(&self.port().to_be_bytes());
-        a
+        a[0..16].copy_from_slice(&value.ip().octets());
+        a[16..18].copy_from_slice(&value.port().to_be_bytes());
+        Self(a)
     }
+}
 
-    fn from_compact_addr(bytes: [u8; 18]) -> Self {
+#[cfg(feature = "std")]
+impl From<CompactAddrV6> for SocketAddrV6 {
+    fn from(value: CompactAddrV6) -> Self {
         let mut ip: [u8; 16] = [0; 16];
-        ip[0..16].copy_from_slice(&bytes[0..16]);
+        ip[0..16].copy_from_slice(&value.0[0..16]);
         let ip = Ipv6Addr::from(ip);
 
         let mut port: [u8; 2] = [0; 2];
-        port[0..2].copy_from_slice(&bytes[16..18]);
+        port[0..2].copy_from_slice(&value.0[16..18]);
         let port = u16::from_be_bytes(port);
 
         SocketAddrV6::new(ip, port, 0, 0)
@@ -361,7 +431,77 @@ impl CompactAddrV6Info for SocketAddrV6 {
 }
 
 #[cfg(feature = "std")]
-fn decode_addr_ipv4_list<B>(nodes: B) -> Result<Vec<AddrId<SocketAddrV4>>, Error>
+impl From<CompactAddrV6> for SocketAddr {
+    fn from(value: CompactAddrV6) -> Self {
+        SocketAddr::V6(SocketAddrV6::from(value))
+    }
+}
+
+/// Compact byte form of a socket address.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompactAddr {
+    /// An IPv4 address with a port.
+    V4(CompactAddrV4),
+    /// An IPv6 address with a port.
+    V6(CompactAddrV6),
+}
+
+impl AsRef<[u8]> for CompactAddr {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            CompactAddr::V4(value) => value.as_ref(),
+            CompactAddr::V6(value) => value.as_ref(),
+        }
+    }
+}
+
+impl From<CompactAddrV4> for CompactAddr {
+    fn from(value: CompactAddrV4) -> Self {
+        CompactAddr::V4(value)
+    }
+}
+
+impl From<CompactAddrV6> for CompactAddr {
+    fn from(value: CompactAddrV6) -> Self {
+        CompactAddr::V6(value)
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<SocketAddrV4> for CompactAddr {
+    fn from(value: SocketAddrV4) -> Self {
+        CompactAddr::V4(CompactAddrV4::from(value))
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<SocketAddrV6> for CompactAddr {
+    fn from(value: SocketAddrV6) -> Self {
+        CompactAddr::V6(CompactAddrV6::from(value))
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<SocketAddr> for CompactAddr {
+    fn from(value: SocketAddr) -> Self {
+        match value {
+            SocketAddr::V4(value) => CompactAddr::V4(CompactAddrV4::from(value)),
+            SocketAddr::V6(value) => CompactAddr::V6(CompactAddrV6::from(value)),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<CompactAddr> for SocketAddr {
+    fn from(value: CompactAddr) -> Self {
+        match value {
+            CompactAddr::V4(value) => SocketAddr::from(value),
+            CompactAddr::V6(value) => SocketAddr::from(value),
+        }
+    }
+}
+
+fn decode_addr_ipv4_list<B>(nodes: B) -> Result<Vec<AddrId<CompactAddrV4>>, Error>
 where
     B: AsRef<[u8]>,
 {
@@ -382,13 +522,12 @@ where
 
             let mut compact_addr: [u8; 6] = [0; 6];
             compact_addr.copy_from_slice(&nodes[offset + 20..offset + 26]);
-            AddrId::new(SocketAddrV4::from_compact_addr(compact_addr), id)
+            AddrId::new(CompactAddrV4::from(compact_addr), id)
         })
         .collect::<Vec<_>>())
 }
 
-#[cfg(feature = "std")]
-fn decode_addr_ipv6_list<B>(nodes6: B) -> Result<Vec<AddrId<SocketAddrV6>>, Error>
+fn decode_addr_ipv6_list<B>(nodes6: B) -> Result<Vec<AddrId<CompactAddrV6>>, Error>
 where
     B: AsRef<[u8]>,
 {
@@ -409,23 +548,11 @@ where
 
             let mut compact_addr: [u8; 18] = [0; 18];
             compact_addr.copy_from_slice(&nodes6[offset + 20..offset + 38]);
-            let addr = SocketAddrV6::from_compact_addr(compact_addr);
+            let addr = CompactAddrV6::from(compact_addr);
 
             AddrId::new(addr, id)
         })
         .collect::<Vec<_>>())
-}
-
-mod sealed {
-    #[cfg(feature = "std")]
-    use std::net::{SocketAddrV4, SocketAddrV6};
-
-    pub trait Private {}
-
-    #[cfg(feature = "std")]
-    impl Private for SocketAddrV6 {}
-    #[cfg(feature = "std")]
-    impl Private for SocketAddrV4 {}
 }
 
 pub mod announce_peer;

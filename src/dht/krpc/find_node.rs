@@ -17,18 +17,13 @@ use core::convert::TryFrom;
 use serde_bytes::{ByteBuf, Bytes};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
-use alloc::{collections::BTreeMap, string::String};
+use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
 
 #[cfg(feature = "std")]
-use std::{
-    collections::BTreeMap,
-    net::{SocketAddrV4, SocketAddrV6},
-    string::String,
-};
+use std::{collections::BTreeMap, string::String, vec, vec::Vec};
 
-#[cfg(feature = "std")]
 use crate::dht::{
-    krpc::{CompactAddrV4Info, CompactAddrV6Info},
+    krpc::{CompactAddrV4, CompactAddrV6},
     node::AddrId,
 };
 
@@ -149,23 +144,21 @@ impl From<&QueryArgs> for Value {
 }
 
 /// The value for the find node response.
-#[cfg(feature = "std")]
 #[derive(Debug)]
 pub struct RespValues {
     id: Id,
-    nodes: Option<Vec<AddrId<SocketAddrV4>>>,
-    nodes6: Option<Vec<AddrId<SocketAddrV6>>>,
+    nodes: Option<Vec<AddrId<CompactAddrV4>>>,
+    nodes6: Option<Vec<AddrId<CompactAddrV6>>>,
 }
 
-#[cfg(feature = "std")]
 impl RespValues {
     /// Instantiates a new instance.
     #[must_use]
     #[inline]
     pub const fn with_id_and_nodes_and_nodes6(
         id: LocalId,
-        nodes: Option<Vec<AddrId<SocketAddrV4>>>,
-        nodes6: Option<Vec<AddrId<SocketAddrV6>>>,
+        nodes: Option<Vec<AddrId<CompactAddrV4>>>,
+        nodes6: Option<Vec<AddrId<CompactAddrV6>>>,
     ) -> Self {
         Self {
             id: Id::new((id.0).0),
@@ -183,31 +176,30 @@ impl RespValues {
     /// Returns the IPv4 nodes.
     #[must_use]
     #[inline]
-    pub const fn nodes(&self) -> Option<&Vec<AddrId<SocketAddrV4>>> {
+    pub const fn nodes(&self) -> Option<&Vec<AddrId<CompactAddrV4>>> {
         self.nodes.as_ref()
     }
 
     /// Sets the IPv4 nodes.
     #[inline]
-    pub fn set_nodes(&mut self, nodes: Option<Vec<AddrId<SocketAddrV4>>>) {
+    pub fn set_nodes(&mut self, nodes: Option<Vec<AddrId<CompactAddrV4>>>) {
         self.nodes = nodes;
     }
 
     /// Returns the IPv6 nodes.
     #[must_use]
     #[inline]
-    pub const fn nodes6(&self) -> Option<&Vec<AddrId<SocketAddrV6>>> {
+    pub const fn nodes6(&self) -> Option<&Vec<AddrId<CompactAddrV6>>> {
         self.nodes6.as_ref()
     }
 
     /// Sets the IPv6 nodes.
     #[inline]
-    pub fn set_nodes6(&mut self, nodes6: Option<Vec<AddrId<SocketAddrV6>>>) {
+    pub fn set_nodes6(&mut self, nodes6: Option<Vec<AddrId<CompactAddrV6>>>) {
         self.nodes6 = nodes6;
     }
 }
 
-#[cfg(feature = "std")]
 impl crate::dht::krpc::RespVal for RespValues {
     fn id(&self) -> Id {
         self.id
@@ -218,7 +210,6 @@ impl crate::dht::krpc::RespVal for RespValues {
     }
 }
 
-#[cfg(feature = "std")]
 impl TryFrom<&BTreeMap<ByteBuf, Value>> for RespValues {
     type Error = crate::dht::krpc::Error;
 
@@ -247,14 +238,12 @@ impl TryFrom<&BTreeMap<ByteBuf, Value>> for RespValues {
     }
 }
 
-#[cfg(feature = "std")]
 impl From<RespValues> for Value {
     fn from(values: RespValues) -> Self {
         Value::from(&values)
     }
 }
 
-#[cfg(feature = "std")]
 impl From<&RespValues> for Value {
     fn from(values: &RespValues) -> Self {
         let mut args: BTreeMap<ByteBuf, Value> = BTreeMap::new();
@@ -267,7 +256,7 @@ impl From<&RespValues> for Value {
             let mut byte_str: Vec<u8> = vec![];
             for n in nodes {
                 byte_str.extend_from_slice(n.id().as_ref());
-                byte_str.extend_from_slice(&n.addr().to_compact_addr());
+                byte_str.extend_from_slice(n.addr().as_ref());
             }
             args.insert(
                 ByteBuf::from(String::from("nodes")),
@@ -279,7 +268,7 @@ impl From<&RespValues> for Value {
             let mut byte_str: Vec<u8> = vec![];
             for n in nodes6 {
                 byte_str.extend_from_slice(n.id().as_ref());
-                byte_str.extend_from_slice(&n.addr().to_compact_addr());
+                byte_str.extend_from_slice(n.addr().as_ref());
             }
             args.insert(
                 ByteBuf::from(String::from("nodes6")),
@@ -294,6 +283,8 @@ impl From<&RespValues> for Value {
 #[cfg(feature = "std")]
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddrV4;
+
     use serde_bytes::Bytes;
 
     use super::*;
@@ -341,12 +332,12 @@ mod tests {
         use std::net::Ipv4Addr;
 
         let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 1234);
-        let compact_addr = addr.to_compact_addr();
+        let compact_addr = CompactAddrV4::from(addr);
         let node_id = addr.ip().rand_id(None, &mut rand::thread_rng()).unwrap();
         let mut find_node_resp = vec![];
         find_node_resp.extend_from_slice(b"d1:rd2:id20:0123456789abcdefghij5:nodes26:");
         find_node_resp.extend_from_slice(node_id.as_ref());
-        find_node_resp.extend_from_slice(&compact_addr[..]);
+        find_node_resp.extend_from_slice(compact_addr.as_ref());
         find_node_resp.extend_from_slice(b"e1:t2:aa1:y1:re");
 
         let msg_value: Value = bt_bencode::from_slice(&find_node_resp[..])?;
