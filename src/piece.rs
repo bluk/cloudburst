@@ -42,7 +42,7 @@ use std::{vec, vec::Vec};
 ///
 /// It is a zero based index.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct Index(u32);
+pub struct Index(pub u32);
 
 impl From<u32> for Index {
     fn from(value: u32) -> Self {
@@ -72,7 +72,7 @@ impl fmt::Display for Index {
 ///
 /// The length of all pieces in a torrent, except the last piece which may be smaller.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct Length(u32);
+pub struct Length(pub u32);
 
 impl From<u32> for Length {
     fn from(value: u32) -> Self {
@@ -112,7 +112,7 @@ impl PartialOrd<BlockBegin> for Length {
 
 /// A byte offset in a piece to begin the block at.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct BlockBegin(u32);
+pub struct BlockBegin(pub u32);
 
 impl From<u32> for BlockBegin {
     fn from(value: u32) -> Self {
@@ -152,7 +152,7 @@ impl fmt::Display for BlockBegin {
 
 /// A block's length.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct BlockLength(u32);
+pub struct BlockLength(pub u32);
 
 impl From<u32> for BlockLength {
     fn from(value: u32) -> Self {

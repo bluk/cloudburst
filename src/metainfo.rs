@@ -351,7 +351,7 @@ impl File {
 
 /// A 160-bit value which is used to identify a torrent.
 #[derive(Clone, Copy, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct InfoHash([u8; 20]);
+pub struct InfoHash(pub [u8; 20]);
 
 impl InfoHash {
     /// Instantiate with the `info` as a Bencode [Value][bt_bencode::Value] and the expected metainfo version.

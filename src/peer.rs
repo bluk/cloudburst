@@ -30,7 +30,7 @@ use std::{string::String, vec::Vec};
 
 /// A peer's ID.
 #[derive(Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Id(pub(crate) [u8; 20]);
+pub struct Id(pub [u8; 20]);
 
 impl Id {
     /// Instantiates an Id with bytes representing the 160-bit value.
@@ -74,7 +74,7 @@ fmt_byte_array!(Id);
 
 /// A local peer's ID.
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct LocalId(Id);
+pub struct LocalId(pub Id);
 
 impl AsRef<[u8]> for LocalId {
     fn as_ref(&self) -> &[u8] {

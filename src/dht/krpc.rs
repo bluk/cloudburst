@@ -291,7 +291,7 @@ pub trait ErrorVal {
 
 /// An IPv4 socket address representable by a compact format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CompactAddrV4([u8; 6]);
+pub struct CompactAddrV4(pub [u8; 6]);
 
 impl CompactAddrV4 {
     /// Instantiates with the given bytes.
@@ -365,7 +365,7 @@ impl From<CompactAddrV4> for SocketAddr {
 
 /// An IPv6 socket address representable by a compact format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CompactAddrV6([u8; 18]);
+pub struct CompactAddrV6(pub [u8; 18]);
 
 impl CompactAddrV6 {
     /// Instantiates with the given bytes.

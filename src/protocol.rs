@@ -24,7 +24,7 @@ pub const PROTOCOL_STRING_BYTES: [u8; 20] = *b"\x13BitTorrent protocol";
 
 /// The reserved bytes in the handshake.
 #[derive(Default, Clone, Copy, PartialEq)]
-pub struct ReservedBytes([u8; 8]);
+pub struct ReservedBytes(pub [u8; 8]);
 
 impl AsRef<[u8]> for ReservedBytes {
     fn as_ref(&self) -> &[u8] {

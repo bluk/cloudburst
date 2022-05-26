@@ -31,7 +31,7 @@ use super::ErrorMsg;
 /// `Id`. If they are the same, then the read message is in response to the
 /// original query.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct Id([u8; 2]);
+pub struct Id(pub [u8; 2]);
 
 impl Id {
     /// Returns a random `Id`.
@@ -73,11 +73,11 @@ impl AsRef<[u8]> for Id {
 #[derive(Debug)]
 pub struct Transaction<Addr, TxId, Instant> {
     /// Returns the address which the message was sent to.
-    addr_opt_id: AddrOptId<Addr>,
+    pub addr_opt_id: AddrOptId<Addr>,
     /// The local transaction ID.
-    tx_id: TxId,
+    pub tx_id: TxId,
     /// The deadline when the transaction is considered to have timed out
-    timeout_deadline: Instant,
+    pub timeout_deadline: Instant,
 }
 
 #[cfg(feature = "std")]

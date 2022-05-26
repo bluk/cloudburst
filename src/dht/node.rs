@@ -28,7 +28,7 @@ use std::{
 
 /// A 160-bit value which is used to identify a node's position within the distributed hash table.
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct Id(pub(crate) [u8; 20]);
+pub struct Id(pub [u8; 20]);
 
 impl Id {
     /// Instantiates a new `Id`.
@@ -182,7 +182,7 @@ fmt_byte_array!(Id);
 ///
 /// It is a newtype to prevent using the local node ID in KRPC message arguments when a target Id is desired (or vice-versa).
 #[derive(Debug, Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct LocalId(pub(crate) Id);
+pub struct LocalId(pub Id);
 
 impl LocalId {
     /// Constructs a new `LocalId` from an existing `Id`.
@@ -231,8 +231,10 @@ impl From<Id> for LocalId {
 /// A node's network address and Id.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AddrId<A> {
-    addr: A,
-    id: Id,
+    /// The network address.
+    pub addr: A,
+    /// The node Id.
+    pub id: Id,
 }
 
 impl<A> AddrId<A> {
@@ -278,8 +280,10 @@ impl<A> AddrId<A> {
 /// addresses.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AddrOptId<A> {
-    addr: A,
-    id: Option<Id>,
+    /// The network address
+    pub addr: A,
+    /// The optional node Id.
+    pub id: Option<Id>,
 }
 
 impl<A> AddrOptId<A> {
