@@ -313,6 +313,18 @@ impl CompactAddrV4 {
     }
 }
 
+impl core::fmt::Display for CompactAddrV4 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let port = <[u8; 2]>::try_from(&self.0[4..6]).unwrap();
+        let port = u16::from_be_bytes(port);
+        write!(
+            f,
+            "{}.{}.{}.{}:{}",
+            self.0[0], self.0[1], self.0[2], self.0[3], port
+        )
+    }
+}
+
 impl AsRef<[u8]> for CompactAddrV4 {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -387,6 +399,28 @@ impl CompactAddrV6 {
     }
 }
 
+impl core::fmt::Display for CompactAddrV6 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        let mut index = 0;
+        loop {
+            write!(f, "{:02x?}{:02x?}", self.0[index], self.0[index + 1])?;
+
+            if index == 14 {
+                break;
+            }
+
+            index += 2;
+            write!(f, ":")?;
+        }
+
+        let port = <[u8; 2]>::try_from(&self.0[16..18]).unwrap();
+        let port = u16::from_be_bytes(port);
+
+        write!(f, "]:{}", port)
+    }
+}
+
 impl AsRef<[u8]> for CompactAddrV6 {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -444,6 +478,15 @@ pub enum CompactAddr {
     V4(CompactAddrV4),
     /// An IPv6 address with a port.
     V6(CompactAddrV6),
+}
+
+impl core::fmt::Display for CompactAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CompactAddr::V4(addr) => write!(f, "{addr}"),
+            CompactAddr::V6(addr) => write!(f, "{addr}"),
+        }
+    }
 }
 
 impl AsRef<[u8]> for CompactAddr {
@@ -562,3 +605,34 @@ pub mod get_peers;
 pub mod ping;
 pub mod ser;
 pub mod transaction;
+
+#[cfg(feature = "std")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::str::FromStr;
+
+    #[test]
+    fn compact_addr_v4_display() {
+        let ipv4_addr_str = "172.16.2.0";
+        let ipv4_addr = Ipv4Addr::from_str(ipv4_addr_str).unwrap();
+        let socket_addr_v4 = SocketAddrV4::new(ipv4_addr, 6881);
+        let compact_addr_v4 = CompactAddrV4::from(socket_addr_v4);
+        assert_eq!(
+            format!("{}", compact_addr_v4),
+            format!("{}:6881", ipv4_addr_str)
+        );
+    }
+
+    #[test]
+    fn compact_addr_v6_display() {
+        let ipv6_addr_str = "2001:0db8:0001:0000:0000:8a2e:0370:7335";
+        let ipv6_addr = Ipv6Addr::from_str(ipv6_addr_str).unwrap();
+        let socket_addr_v6 = SocketAddrV6::new(ipv6_addr, 6881, 0, 0);
+        let compact_addr_v6 = CompactAddrV6::from(socket_addr_v6);
+        assert_eq!(
+            format!("{}", compact_addr_v6),
+            format!("[{}]:6881", ipv6_addr_str)
+        );
+    }
+}
