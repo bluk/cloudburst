@@ -10,18 +10,13 @@
 
 use core::convert::TryFrom;
 
-use crate::dht::{
-    krpc::RespMsg,
-    node::{self, AddrOptId, LocalId},
-};
+use crate::dht::node::AddrOptId;
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::vec::Vec;
 use bt_bencode::Value;
 #[cfg(feature = "std")]
 use std::vec::Vec;
-
-use super::ErrorMsg;
 
 /// An opaque identifer which correlates a KRPC query with a response or error.
 ///
@@ -76,6 +71,8 @@ pub struct Transaction<Addr, TxId, Instant> {
     pub addr_opt_id: AddrOptId<Addr>,
     /// The local transaction ID.
     pub tx_id: TxId,
+    /// The method which the query was for
+    pub method: &'static [u8],
     /// The deadline when the transaction is considered to have timed out
     pub timeout_deadline: Instant,
 }
@@ -96,10 +93,16 @@ impl<Addr, TxId, Instant> Transaction<Addr, TxId, Instant> {
     /// Instantiates a new `Transaction`.
     #[must_use]
     #[inline]
-    pub const fn new(addr_opt_id: AddrOptId<Addr>, tx_id: TxId, timeout_deadline: Instant) -> Self {
+    pub const fn new(
+        addr_opt_id: AddrOptId<Addr>,
+        tx_id: TxId,
+        method: &'static [u8],
+        timeout_deadline: Instant,
+    ) -> Self {
         Self {
             addr_opt_id,
             tx_id,
+            method,
             timeout_deadline,
         }
     }
@@ -149,21 +152,6 @@ impl Error {
     pub const fn is_unknown_tx(&self) -> bool {
         matches!(self.kind, ErrorKind::UnknownTx)
     }
-
-    #[must_use]
-    #[inline]
-    const fn invalid_queried_node_id() -> Self {
-        Self {
-            kind: ErrorKind::InvalidQueriedNodeId,
-        }
-    }
-
-    /// If the message has an invalid queried node ID.
-    #[must_use]
-    #[inline]
-    pub const fn is_invalid_queried_node_id(&self) -> bool {
-        matches!(self.kind, ErrorKind::InvalidQueriedNodeId)
-    }
 }
 
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
@@ -171,8 +159,6 @@ impl Error {
 enum ErrorKind {
     #[cfg_attr(feature = "std", error("unknown transaction"))]
     UnknownTx,
-    #[cfg_attr(feature = "std", error("invalid input"))]
-    InvalidQueriedNodeId,
 }
 
 /// A deserialized message event with the relevant node information and local
@@ -332,59 +318,35 @@ impl<Addr, TxId, Instant> Transactions<Addr, TxId, Instant> {
     /// If an error is returned, any associated transaction is not removed. If
     /// the transaction should be removed in an error case, call the
     /// [`Transactions::remove()`] method.
-    pub fn on_recv_resp(
+    pub fn on_recv(
         &mut self,
-        msg: &dyn RespMsg,
-        is_queried_node_id_strictly_checked: bool,
-        local_id: LocalId,
+        tx_id: &TxId,
+        // queried_node_id: Id,
+        // is_queried_node_id_strictly_checked: bool,
+        // local_id: LocalId,
     ) -> Result<Transaction<Addr, TxId, Instant>, Error>
     where
         Addr: PartialEq,
         TxId: PartialEq + for<'a> TryFrom<&'a [u8]>,
     {
-        if let Some(tx) = msg
-            .tx_id()
-            .and_then(|tx_id| TxId::try_from(tx_id).ok())
-            .and_then(|tx_id| self.remove(&tx_id))
-        {
-            let queried_node_id = RespMsg::queried_node_id(msg);
-            let is_response_queried_id_valid =
-                tx.addr_opt_id().id().map_or(true, |expected_node_id| {
-                    queried_node_id == Some(expected_node_id)
-                });
-            if is_response_queried_id_valid
-                || (!is_queried_node_id_strictly_checked
-                    && queried_node_id == Some(node::Id::from(local_id)))
-            {
-                Ok(tx)
-            } else {
-                // re-insert the transaction
-                self.insert(tx);
-                Err(Error::invalid_queried_node_id())
-            }
-        } else {
-            Err(Error::unknown_tx())
-        }
-    }
-
-    /// Proceses a received error message.
-    ///
-    /// `msg` is the received error message.
-    ///
-    /// # Errors
-    ///
-    /// Errors are returned if there is no associated transaction found.
-    pub fn on_recv_error(
-        &mut self,
-        msg: &dyn ErrorMsg,
-    ) -> Result<Transaction<Addr, TxId, Instant>, Error>
-    where
-        Addr: PartialEq,
-        TxId: PartialEq + for<'a> TryFrom<&'a [u8]>,
-    {
-        msg.tx_id()
-            .and_then(|tx_id| TxId::try_from(tx_id).ok())
-            .and_then(|tx_id| self.remove(&tx_id))
-            .ok_or_else(Error::unknown_tx)
+        self.remove(tx_id).ok_or_else(Error::unknown_tx)
+        // if let Some(tx) = self.remove(&tx_id) {
+        // let is_response_queried_id_valid =
+        //     tx.addr_opt_id().id().map_or(true, |expected_node_id| {
+        //         queried_node_id == Some(expected_node_id)
+        //     });
+        // if is_response_queried_id_valid
+        //     || (!is_queried_node_id_strictly_checked
+        //         && queried_node_id == Some(node::Id::from(local_id)))
+        // {
+        // Ok(tx)
+        // } else {
+        //     // re-insert the transaction
+        //     self.insert(tx);
+        //     Err(Error::invalid_queried_node_id())
+        // }
+        // } else {
+        //     Err(Error::unknown_tx())
+        // }
     }
 }

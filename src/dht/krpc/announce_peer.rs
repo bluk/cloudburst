@@ -12,21 +12,12 @@
 //!
 //! [bep_0005]: http://bittorrent.org/beps/bep_0005.html
 
-use bt_bencode::{value::Number, Value};
 use core::convert::TryFrom;
-use serde_bytes::{ByteBuf, Bytes};
-
-#[cfg(all(feature = "alloc", not(feature = "std")))]
-use alloc::{collections::BTreeMap, string::String, vec::Vec};
-
-#[cfg(feature = "std")]
-use std::{collections::BTreeMap, string::String, vec::Vec};
+use serde_bytes::Bytes;
+use serde_derive::{Deserialize, Serialize};
 
 use crate::{
-    dht::{
-        krpc::Error,
-        node::{Id, LocalId},
-    },
+    dht::node::{Id, LocalId},
     metainfo::InfoHash,
 };
 
@@ -34,259 +25,97 @@ use crate::{
 pub const METHOD_ANNOUNCE_PEER: &[u8] = b"announce_peer";
 
 /// The arguments for the announce peer query message.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct QueryArgs {
-    id: Id,
-    info_hash: InfoHash,
-    token: Vec<u8>,
-    port: Option<u16>,
-    implied_port: Option<bool>,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct QueryArgs<'a> {
+    /// The querying node's ID
+    #[serde(borrow)]
+    pub id: &'a Bytes,
+    /// The `InfoHash` associated with the torrent
+    #[serde(borrow)]
+    pub info_hash: &'a Bytes,
+    /// Opaque token received from a [`crate::dht::krpc::get_peers::RespValues`] to authenticate the announce.
+    #[serde(borrow)]
+    pub token: &'a Bytes,
+    /// The port listened on
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+    /// If the node is behind a DHT, a "true" implied port value (`Some(non-zero)`) indicates to use the port from the received message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implied_port: Option<u8>,
 }
 
-impl QueryArgs {
+impl<'a> QueryArgs<'a> {
     /// Instantiates a new query message.
     #[must_use]
     #[inline]
-    pub const fn new(
-        id: LocalId,
-        info_hash: InfoHash,
-        token: Vec<u8>,
+    pub fn new(
+        id: &'a LocalId,
+        info_hash: &'a InfoHash,
+        token: &'a Bytes,
         port: Option<u16>,
         implied_port: Option<bool>,
     ) -> Self {
         Self {
-            id: Id::new((id.0).0),
-            info_hash,
+            id: Bytes::new(&(id.0).0),
+            info_hash: Bytes::new(&info_hash.0),
             token,
             port,
-            implied_port,
+            implied_port: implied_port.map(u8::from),
         }
     }
 
-    /// Sets the querying node ID in the arguments.
+    /// Returns the querying node's ID.
+    #[must_use]
     #[inline]
-    pub fn set_id(&mut self, id: LocalId) {
-        self.id = Id::new((id.0).0);
+    pub fn id(&self) -> Option<Id> {
+        Id::try_from(self.id.as_ref()).ok()
     }
 
     /// Returns the `InfoHash` for the relevant torrent.
     #[must_use]
     #[inline]
-    pub const fn info_hash(&self) -> InfoHash {
-        self.info_hash
-    }
-
-    /// Sets the `InfoHash` for the relevant torrent.
-    #[inline]
-    pub fn set_info_hash(&mut self, info_hash: InfoHash) {
-        self.info_hash = info_hash;
+    pub fn info_hash(&self) -> Option<InfoHash> {
+        InfoHash::try_from(self.info_hash.as_ref()).ok()
     }
 
     /// Returns the token which is used by the queried node for verification.
     #[must_use]
     #[inline]
     pub fn token(&self) -> &[u8] {
-        &self.token
-    }
-
-    /// Sets the token which is used by the queried node for verification.
-    #[inline]
-    pub fn set_token(&mut self, token: Vec<u8>) {
-        self.token = token;
-    }
-
-    /// Returns the port which peers in the torrent should connect to.
-    #[must_use]
-    #[inline]
-    pub const fn port(&self) -> Option<u16> {
-        self.port
-    }
-
-    /// Sets the port which peers in the torrent should connect to.
-    #[inline]
-    pub fn set_port(&mut self, port: Option<u16>) {
-        self.port = port;
+        self.token
     }
 
     /// Returns if the port should be implied from the querying node's DHT sending port.
     #[must_use]
     #[inline]
-    pub const fn implied_port(&self) -> Option<bool> {
-        self.implied_port
-    }
-
-    /// Sets if the port should be implied from the querying node's DHT sending port.
-    #[inline]
-    pub fn set_implied_port(&mut self, implied_port: Option<bool>) {
-        self.implied_port = implied_port;
-    }
-}
-
-impl crate::dht::krpc::QueryArgs for QueryArgs {
-    fn method_name() -> &'static [u8] {
-        METHOD_ANNOUNCE_PEER
-    }
-
-    fn id(&self) -> Id {
-        self.id
-    }
-
-    fn to_value(&self) -> Value {
-        Value::from(self)
-    }
-}
-
-impl TryFrom<Value> for QueryArgs {
-    type Error = Error;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        Self::try_from(&value)
-    }
-}
-
-impl TryFrom<&Value> for QueryArgs {
-    type Error = Error;
-
-    fn try_from(value: &Value) -> Result<Self, Self::Error> {
-        Self::try_from(value.as_dict().ok_or(Error::is_deserialize_error())?)
-    }
-}
-
-impl TryFrom<&BTreeMap<ByteBuf, Value>> for QueryArgs {
-    type Error = Error;
-
-    fn try_from(args: &BTreeMap<ByteBuf, Value>) -> Result<Self, Self::Error> {
-        match (
-            args.get(Bytes::new(b"id"))
-                .and_then(bt_bencode::Value::as_byte_str)
-                .and_then(|id| Id::try_from(id.as_slice()).ok()),
-            args.get(Bytes::new(b"info_hash"))
-                .and_then(bt_bencode::Value::as_byte_str)
-                .and_then(|info_hash| InfoHash::try_from(info_hash.as_slice()).ok()),
-            args.get(Bytes::new(b"token"))
-                .and_then(bt_bencode::Value::as_byte_str),
-            args.get(Bytes::new(b"port"))
-                .and_then(bt_bencode::Value::as_u64)
-                .and_then(|port| u16::try_from(port).ok()),
-            args.get(Bytes::new(b"implied_port"))
-                .and_then(bt_bencode::Value::as_u64)
-                .map(|implied_port| implied_port != 0),
-        ) {
-            (Some(id), Some(info_hash), Some(token), port, implied_port) => Ok(QueryArgs {
-                id,
-                info_hash,
-                token: token.to_vec(),
-                port,
-                implied_port,
-            }),
-            _ => Err(Error::is_deserialize_error()),
-        }
-    }
-}
-
-impl From<QueryArgs> for Value {
-    fn from(args: QueryArgs) -> Self {
-        Value::from(&args)
-    }
-}
-
-impl From<&QueryArgs> for Value {
-    fn from(args: &QueryArgs) -> Self {
-        let mut d: BTreeMap<ByteBuf, Value> = BTreeMap::new();
-        d.insert(
-            ByteBuf::from(String::from("id")),
-            Value::ByteStr(ByteBuf::from(args.id)),
-        );
-        if let Some(implied_port) = args.implied_port {
-            d.insert(
-                ByteBuf::from(String::from("implied_port")),
-                Value::Int(if implied_port {
-                    Number::Unsigned(1)
-                } else {
-                    Number::Unsigned(0)
-                }),
-            );
-        }
-        d.insert(
-            ByteBuf::from(String::from("info_hash")),
-            Value::ByteStr(ByteBuf::from(args.info_hash)),
-        );
-        d.insert(
-            ByteBuf::from(String::from("port")),
-            Value::Int(args.port.map_or(Number::Unsigned(0), |port| {
-                Number::Unsigned(u64::from(port))
-            })),
-        );
-        d.insert(
-            ByteBuf::from(String::from("token")),
-            Value::ByteStr(ByteBuf::from(args.token.clone())),
-        );
-        Value::Dict(d)
+    pub fn implied_port(&self) -> Option<bool> {
+        self.implied_port.map(|v| v != 0)
     }
 }
 
 /// The value for the announce peer response.
-#[derive(Debug)]
-pub struct RespValues {
-    id: Id,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RespValues<'a> {
+    /// The queried node's ID
+    #[serde(borrow)]
+    pub id: &'a Bytes,
 }
 
-impl RespValues {
+impl<'a> RespValues<'a> {
     /// Instantiates a new instance.
     #[must_use]
     #[inline]
-    pub const fn new(id: LocalId) -> Self {
+    pub fn new(id: &'a LocalId) -> Self {
         Self {
-            id: Id::new((id.0).0),
+            id: Bytes::new(&(id.0).0),
         }
     }
 
-    /// Sets the queried node Id.
+    /// Returns the queried node's ID.
+    #[must_use]
     #[inline]
-    pub fn set_id(&mut self, id: LocalId) {
-        self.id = Id::new((id.0).0);
-    }
-}
-
-impl crate::dht::krpc::RespVal for RespValues {
-    fn id(&self) -> Id {
-        self.id
-    }
-
-    fn to_value(&self) -> Value {
-        Value::from(self)
-    }
-}
-
-impl TryFrom<&BTreeMap<ByteBuf, Value>> for RespValues {
-    type Error = Error;
-
-    fn try_from(values: &BTreeMap<ByteBuf, Value>) -> Result<Self, Self::Error> {
-        match values
-            .get(Bytes::new(b"id"))
-            .and_then(bt_bencode::Value::as_byte_str)
-            .and_then(|id| Id::try_from(id.as_slice()).ok())
-        {
-            Some(id) => Ok(RespValues { id }),
-            _ => Err(Error::is_deserialize_error()),
-        }
-    }
-}
-
-impl From<RespValues> for Value {
-    fn from(values: RespValues) -> Self {
-        Value::from(&values)
-    }
-}
-
-impl From<&RespValues> for Value {
-    fn from(values: &RespValues) -> Self {
-        let mut args: BTreeMap<ByteBuf, Value> = BTreeMap::new();
-        args.insert(
-            ByteBuf::from(String::from("id")),
-            Value::ByteStr(ByteBuf::from(values.id)),
-        );
-        Value::Dict(args)
+    pub fn id(&self) -> Option<Id> {
+        Id::try_from(self.id.as_ref()).ok()
     }
 }
 
@@ -296,74 +125,64 @@ mod tests {
 
     use super::*;
 
-    use crate::dht::krpc::{Msg, QueryArgs, QueryMsg, RespMsg, RespVal, Ty};
+    use crate::dht::krpc::{ser, Error, Msg, Ty};
 
     #[test]
     fn test_serde_announce_peer_query() -> Result<(), Error> {
         let announce_peer_query = b"d1:ad2:id20:abcdefghij01234567899:info_hash20:mnopqrstuvwxyz1234564:porti6331e5:token8:abcd1234e1:q13:announce_peer1:t2:aa1:y1:qe";
 
-        let msg_value: Value = bt_bencode::from_slice(&announce_peer_query[..])?;
-        assert_eq!(msg_value.ty(), Some(Ty::Query));
-        assert_eq!(msg_value.method_name(), Some(METHOD_ANNOUNCE_PEER));
+        let msg: Msg<'_> = bt_bencode::from_slice(announce_peer_query)?;
+        assert_eq!(msg.tx_id(), b"aa");
+        assert_eq!(msg.ty(), Ty::Query);
+        assert_eq!(msg.client_version(), None);
+        assert_eq!(msg.method_name(), Some(METHOD_ANNOUNCE_PEER));
         assert_eq!(
-            msg_value.method_name_str(),
+            msg.method_name_str(),
             Some(core::str::from_utf8(METHOD_ANNOUNCE_PEER).unwrap())
         );
-        assert_eq!(msg_value.tx_id(), Some(b"aa".as_ref()));
-        if let Some(args) = msg_value
-            .args()
-            .and_then(|a| crate::dht::krpc::announce_peer::QueryArgs::try_from(a).ok())
-        {
-            assert_eq!(args.id(), Id::from(*b"abcdefghij0123456789"));
-            assert_eq!(args.info_hash(), InfoHash::from(*b"mnopqrstuvwxyz123456"));
-            assert_eq!(args.token(), b"abcd1234");
-            assert_eq!(args.port(), Some(6331));
-            assert!(args.implied_port().is_none());
 
-            let args_value = args.into();
-            let ser_query_msg = crate::dht::krpc::ser::QueryMsg {
-                a: Some(&args_value),
-                q: Bytes::new(METHOD_ANNOUNCE_PEER),
-                t: Bytes::new(b"aa"),
-                v: None,
-            };
-            let ser_msg =
-                bt_bencode::to_vec(&ser_query_msg).map_err(|_| Error::is_deserialize_error())?;
-            assert_eq!(ser_msg, announce_peer_query);
-            Ok(())
-        } else {
-            panic!()
-        }
+        let query_args: QueryArgs<'_> = msg.args().unwrap()?;
+        assert_eq!(query_args.id(), Some(Id::from(*b"abcdefghij0123456789")));
+        assert_eq!(
+            query_args.info_hash(),
+            Some(InfoHash::from(*b"mnopqrstuvwxyz123456"))
+        );
+        assert_eq!(query_args.token, b"abcd1234");
+        assert_eq!(query_args.port, Some(6331));
+        assert_eq!(query_args.implied_port(), None);
+
+        let ser_query_msg = ser::QueryMsg {
+            t: Bytes::new(b"aa"),
+            v: None,
+            q: Bytes::new(METHOD_ANNOUNCE_PEER),
+            a: query_args,
+        };
+        let ser_msg = bt_bencode::to_vec(&ser_query_msg)?;
+        assert_eq!(ser_msg, announce_peer_query);
+
+        Ok(())
     }
 
     #[test]
     fn test_serde_announce_peer_response_values() -> Result<(), Error> {
         let announce_peer_resp = b"d1:rd2:id20:0123456789abcdefghije1:t2:aa1:y1:re";
 
-        let msg_value: Value = bt_bencode::from_slice(&announce_peer_resp[..])?;
-        assert_eq!(msg_value.ty(), Some(Ty::Response));
-        assert_eq!(msg_value.method_name(), None);
-        assert_eq!(msg_value.method_name_str(), None);
-        assert_eq!(msg_value.tx_id(), Some(b"aa".as_ref()));
+        let msg: Msg<'_> = bt_bencode::from_slice(announce_peer_resp)?;
+        assert_eq!(msg.tx_id(), b"aa");
+        assert_eq!(msg.ty(), Ty::Response);
+        assert_eq!(msg.client_version(), None);
 
-        if let Some(values) = msg_value
-            .values()
-            .and_then(|a| RespValues::try_from(a).ok())
-        {
-            assert_eq!(values.id(), Id::from(*b"0123456789abcdefghij"));
+        let resp_values: RespValues<'_> = msg.values().unwrap()?;
+        assert_eq!(resp_values.id(), Some(Id::from(*b"0123456789abcdefghij")));
 
-            let resp_values = values.into();
-            let ser_resp_msg = crate::dht::krpc::ser::RespMsg {
-                r: Some(&resp_values),
-                t: Bytes::new(b"aa"),
-                v: None,
-            };
-            let ser_msg =
-                bt_bencode::to_vec(&ser_resp_msg).map_err(|_| Error::is_deserialize_error())?;
-            assert_eq!(ser_msg, announce_peer_resp);
-            Ok(())
-        } else {
-            panic!()
-        }
+        let ser_resp_msg = ser::RespMsg {
+            t: Bytes::new(b"aa"),
+            v: None,
+            r: &resp_values,
+        };
+        let ser_msg = bt_bencode::to_vec(&ser_resp_msg)?;
+        assert_eq!(ser_msg, announce_peer_resp);
+
+        Ok(())
     }
 }

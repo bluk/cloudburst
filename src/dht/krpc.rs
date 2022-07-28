@@ -8,21 +8,17 @@
 
 //! KRPC messages are the protocol messages exchanged.
 
-use bt_bencode::Value;
 use core::{convert::TryFrom, fmt};
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Serialize,
+};
 use serde_bytes::{ByteBuf, Bytes};
 
-#[cfg(all(feature = "alloc", not(feature = "std")))]
-use alloc::{collections::BTreeMap, vec::Vec};
-
 #[cfg(feature = "std")]
-use std::{
-    collections::BTreeMap,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
-    vec::Vec,
-};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 
-use crate::dht::node::{AddrId, Id};
+use super::node::Id;
 
 /// Error for KRPC protocol.
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
@@ -32,14 +28,6 @@ pub struct Error {
 }
 
 impl Error {
-    #[must_use]
-    #[inline]
-    pub(crate) const fn is_deserialize_error() -> Self {
-        Self {
-            kind: ErrorKind::CannotDeserializeKrpcMessage,
-        }
-    }
-
     #[allow(dead_code)]
     #[must_use]
     #[inline]
@@ -52,24 +40,16 @@ impl Error {
 
 impl From<bt_bencode::Error> for Error {
     fn from(e: bt_bencode::Error) -> Self {
-        match e {
-            bt_bencode::Error::Serialize(_) => Self {
-                kind: ErrorKind::CannotSerializeKrpcMessage,
-            },
-            _ => Self {
-                kind: ErrorKind::CannotDeserializeKrpcMessage,
-            },
+        Self {
+            kind: ErrorKind::BtBencode(e),
         }
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.kind {
-            ErrorKind::CannotDeserializeKrpcMessage => {
-                f.write_str("cannot deserialize KRPC message")
-            }
-            ErrorKind::CannotSerializeKrpcMessage => f.write_str("cannot serialize KRPC message"),
+        match &self.kind {
+            ErrorKind::BtBencode(error) => fmt::Display::fmt(error, f),
             ErrorKind::InvalidCompactAddr => f.write_str("invalid compact address"),
         }
     }
@@ -77,8 +57,7 @@ impl fmt::Display for Error {
 
 #[derive(Debug)]
 enum ErrorKind {
-    CannotDeserializeKrpcMessage,
-    CannotSerializeKrpcMessage,
+    BtBencode(bt_bencode::Error),
     #[allow(dead_code)]
     InvalidCompactAddr,
 }
@@ -86,7 +65,7 @@ enum ErrorKind {
 /// Type of KRPC message.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
-pub enum Ty<'a> {
+pub enum Ty {
     /// Query message.
     Query,
     /// Response message.
@@ -94,160 +73,209 @@ pub enum Ty<'a> {
     /// Error message.
     Error,
     /// Unknown message type.
-    Unknown(&'a str),
+    Unknown,
 }
 
-impl<'a> Ty<'a> {
-    /// Returns the value used in a message to identify the message type.
-    #[must_use]
-    #[inline]
-    pub const fn val(&self) -> &'a str {
-        match self {
-            Ty::Query => "q",
-            Ty::Response => "r",
-            Ty::Error => "e",
-            Ty::Unknown(v) => v,
+impl<'a> From<&'a [u8]> for Ty {
+    fn from(y: &'a [u8]) -> Self {
+        match y {
+            b"q" => Ty::Query,
+            b"r" => Ty::Response,
+            b"e" => Ty::Error,
+            _ => Ty::Unknown,
+        }
+    }
+}
+
+impl<'a> From<&'a Bytes> for Ty {
+    fn from(y: &'a Bytes) -> Self {
+        match y.as_ref() {
+            b"q" => Ty::Query,
+            b"r" => Ty::Response,
+            b"e" => Ty::Error,
+            _ => Ty::Unknown,
+        }
+    }
+}
+
+impl<'a> From<&'a ByteBuf> for Ty {
+    fn from(y: &'a ByteBuf) -> Self {
+        match y.as_slice() {
+            b"q" => Ty::Query,
+            b"r" => Ty::Response,
+            b"e" => Ty::Error,
+            _ => Ty::Unknown,
         }
     }
 }
 
 /// A KRPC message.
-pub trait Msg {
+#[derive(Debug, serde_derive::Deserialize)]
+pub struct Msg<'a> {
+    /// Transaction ID
+    pub t: &'a [u8],
+    /// Type of message
+    pub y: &'a [u8],
+    /// Client version
+    pub v: Option<&'a [u8]>,
+
+    /// Query method name
+    pub q: Option<&'a [u8]>,
+    /// Query arguments
+    ///
+    /// The value is the raw value for the `a` key. The bytes should be
+    /// deserialized into a specific query argument type based on the method
+    /// name.
+    pub a: Option<&'a [u8]>,
+
+    /// Response values
+    ///
+    /// The value is the raw value for the `r` key. The bytes should be
+    /// deserialized into a specific response value type based on the
+    /// transaction id.
+    pub r: Option<&'a [u8]>,
+
+    /// Error data
+    ///
+    /// The value is the raw value for the `e` key.
+    pub e: Option<&'a [u8]>,
+}
+
+impl<'a> Msg<'a> {
     /// The transaction id for the message.
-    fn tx_id(&self) -> Option<&[u8]>;
+    #[inline]
+    #[must_use]
+    pub fn tx_id(&self) -> &[u8] {
+        self.t
+    }
 
     /// The type of message.
-    fn ty(&self) -> Option<Ty<'_>>;
+    #[inline]
+    #[must_use]
+    pub fn ty(&self) -> Ty {
+        Ty::from(self.y)
+    }
 
-    /// The client version as a byte buffer.
-    fn client_version(&self) -> Option<&[u8]>;
+    /// The client version as a byte slice.
+    #[inline]
+    #[must_use]
+    pub fn client_version(&self) -> Option<&[u8]> {
+        self.v
+    }
 
-    /// The client version as a string.
-    fn client_version_str(&self) -> Option<&str> {
-        self.client_version()
-            .and_then(|v| core::str::from_utf8(v).ok())
+    /// The client version as a `str`.
+    #[inline]
+    #[must_use]
+    pub fn client_version_str(&self) -> Option<&str> {
+        self.v.and_then(|v| core::str::from_utf8(v).ok())
+    }
+
+    /// The query method name as a byte slice.
+    #[inline]
+    #[must_use]
+    pub fn method_name(&self) -> Option<&[u8]> {
+        self.q
+    }
+
+    /// The query method name as a `str`.
+    #[inline]
+    #[must_use]
+    pub fn method_name_str(&self) -> Option<&str> {
+        self.q.and_then(|q| core::str::from_utf8(q).ok())
+    }
+
+    /// The deserialized query arguments.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cloudburst::dht::{krpc::{Msg, ping::QueryArgs}, node::Id};
+    ///
+    /// let ping_query = b"d1:ad2:id20:abcdefghij0123456789e1:q4:ping1:t2:aa1:y1:qe";
+    /// let query: Msg<'_> = bt_bencode::from_slice(ping_query.as_slice())?;
+    /// let query_args: QueryArgs<'_> = query.args().expect("arguments to exist")?;
+    /// assert_eq!(query_args.id(), Some(Id::from(*b"abcdefghij0123456789")));
+    ///
+    /// # Ok::<(), bt_bencode::Error>(())
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn args<T>(&'a self) -> Option<Result<T, bt_bencode::Error>>
+    where
+        T: Deserialize<'a>,
+    {
+        self.a.map(bt_bencode::from_slice)
+    }
+
+    /// The deserialized response values.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cloudburst::dht::{krpc::{Msg, ping::RespValues}, node::Id};
+    ///
+    /// let ping_resp = b"d1:rd2:id20:mnopqrstuvwxyz123456e1:t2:aa1:y1:re";
+    /// let resp: Msg<'_> = bt_bencode::from_slice(ping_resp.as_slice())?;
+    /// let resp_values: RespValues<'_> = resp.values().expect("response values to exist")?;
+    /// assert_eq!(resp_values.id(), Some(Id::from(*b"mnopqrstuvwxyz123456")));
+    ///
+    /// # Ok::<(), bt_bencode::Error>(())
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn values<T>(&'a self) -> Option<Result<T, bt_bencode::Error>>
+    where
+        T: Deserialize<'a>,
+    {
+        self.r.map(bt_bencode::from_slice)
+    }
+
+    /// The raw captured response values data.
+    #[inline]
+    #[must_use]
+    pub fn error(&self) -> Option<(ErrorCode, &str)> {
+        self.e
+            .and_then(|e| bt_bencode::from_slice::<(i64, &str)>(e).ok())
+            .map(|(code, error_msg)| (ErrorCode::from(code), error_msg))
     }
 }
 
-impl Msg for Value {
-    fn tx_id(&self) -> Option<&[u8]> {
-        self.get("t")
-            .and_then(bt_bencode::Value::as_byte_str)
-            .map(|t| t.as_slice())
-    }
+/// Generic query arguments.
+#[derive(Debug, serde_derive::Deserialize)]
+pub struct QueryArgs<'a> {
+    /// The querying node's ID
+    #[serde(borrow)]
+    pub id: &'a Bytes,
+}
 
-    fn ty(&self) -> Option<Ty<'_>> {
-        self.get("y")
-            .and_then(bt_bencode::Value::as_str)
-            .map(|y| match y {
-                "q" => Ty::Query,
-                "r" => Ty::Response,
-                "e" => Ty::Error,
-                y => Ty::Unknown(y),
-            })
-    }
-
-    fn client_version(&self) -> Option<&[u8]> {
-        self.get("v")
-            .and_then(bt_bencode::Value::as_byte_str)
-            .map(|v| v.as_slice())
+impl<'a> QueryArgs<'a> {
+    /// Returns the querying node's ID.
+    #[must_use]
+    #[inline]
+    pub fn id(&self) -> Option<Id> {
+        Id::try_from(self.id.as_ref()).ok()
     }
 }
 
-/// A KPRC query message.
-pub trait QueryMsg: Msg {
-    /// The method name of the query.
-    fn method_name(&self) -> Option<&[u8]>;
-
-    /// The method name of the query as a string.
-    fn method_name_str(&self) -> Option<&str> {
-        self.method_name()
-            .and_then(|v| core::str::from_utf8(v).ok())
-    }
-
-    /// The arguments for the query.
-    fn args(&self) -> Option<&BTreeMap<ByteBuf, Value>>;
-
-    /// The querying node ID.
-    fn querying_node_id(&self) -> Option<Id> {
-        self.args()
-            .and_then(|a| a.get(Bytes::new(b"id")))
-            .and_then(bt_bencode::Value::as_byte_str)
-            .and_then(|id| Id::try_from(id.as_slice()).ok())
-    }
+/// Generic response value.
+#[derive(Debug, serde_derive::Deserialize)]
+pub struct RespValues<'a> {
+    /// The queried node's ID
+    #[serde(borrow)]
+    pub id: &'a Bytes,
 }
 
-impl QueryMsg for Value {
-    fn method_name(&self) -> Option<&[u8]> {
-        self.get("q")
-            .and_then(bt_bencode::Value::as_byte_str)
-            .map(|v| v.as_slice())
-    }
-
-    fn args(&self) -> Option<&BTreeMap<ByteBuf, Value>> {
-        self.get("a").and_then(bt_bencode::Value::as_dict)
-    }
-}
-
-/// KRPC query arguments.
-pub trait QueryArgs {
-    /// The query method name.
-    fn method_name() -> &'static [u8];
-
-    /// The querying node ID.
-    fn id(&self) -> Id;
-
-    /// Represents the arguments as a Bencoded Value.
-    fn to_value(&self) -> Value;
-}
-
-/// A KPRC response message.
-pub trait RespMsg: Msg {
-    /// The response values.
-    fn values(&self) -> Option<&BTreeMap<ByteBuf, Value>>;
-
-    /// The queried node id.
-    fn queried_node_id(&self) -> Option<Id>;
-}
-
-impl RespMsg for Value {
-    fn values(&self) -> Option<&BTreeMap<ByteBuf, Value>> {
-        self.get("r").and_then(bt_bencode::Value::as_dict)
-    }
-
-    fn queried_node_id(&self) -> Option<Id> {
-        self.get("r")
-            .and_then(|a| a.get("id"))
-            .and_then(bt_bencode::Value::as_byte_str)
-            .and_then(|id| Id::try_from(id.as_slice()).ok())
-    }
-}
-
-/// KRPC response values.
-pub trait RespVal {
-    /// The queried node ID.
-    fn id(&self) -> Id;
-
-    /// Represents the values as a Bencoded value.
-    fn to_value(&self) -> Value;
-}
-
-/// A KRPC error message.
-pub trait ErrorMsg: Msg {
-    /// The error value.
-    fn error(&self) -> Option<&[Value]>;
-}
-
-impl ErrorMsg for Value {
-    fn error(&self) -> Option<&[Value]> {
-        self.get("e")
-            .and_then(bt_bencode::Value::as_array)
-            .map(core::convert::AsRef::as_ref)
+impl<'a> RespValues<'a> {
+    /// Returns the querying node's ID.
+    #[must_use]
+    #[inline]
+    pub fn id(&self) -> Option<Id> {
+        Id::try_from(self.id.as_ref()).ok()
     }
 }
 
 /// Standard error codes in KRPC error messages.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ErrorCode {
     /// Generic error.
@@ -259,14 +287,14 @@ pub enum ErrorCode {
     /// Method unknown error.
     MethodUnknown,
     /// A non-standard error.
-    Other(i32),
+    Other(i64),
 }
 
 impl ErrorCode {
     /// The code used in a message to identify the message.
     #[must_use]
     #[inline]
-    pub const fn code(self) -> i32 {
+    pub const fn code(self) -> i64 {
         match self {
             ErrorCode::GenericError => 201,
             ErrorCode::ServerError => 202,
@@ -277,16 +305,60 @@ impl ErrorCode {
     }
 }
 
-/// The error value.
-pub trait ErrorVal {
-    /// The error code.
-    fn code(&self) -> ErrorCode;
+impl From<i64> for ErrorCode {
+    fn from(code: i64) -> Self {
+        match code {
+            201 => ErrorCode::GenericError,
+            202 => ErrorCode::ServerError,
+            203 => ErrorCode::ProtocolError,
+            204 => ErrorCode::MethodUnknown,
+            _ => ErrorCode::Other(code),
+        }
+    }
+}
 
-    /// The error description.
-    fn description(&self) -> &str;
+impl Serialize for ErrorCode {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_i64(self.code())
+    }
+}
 
-    /// Represents the arguments as a Bencoded Value.
-    fn to_value(&self) -> Value;
+impl<'de> Deserialize<'de> for ErrorCode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct I64Visitor;
+
+        impl<'de> Visitor<'de> for I64Visitor {
+            type Value = ErrorCode;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("enum ErrorCode")
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(ErrorCode::from(v))
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                i64::try_from(v)
+                    .map_err(|_| de::Error::invalid_type(de::Unexpected::Unsigned(v), &self))
+                    .and_then(|v| self.visit_i64(v))
+            }
+        }
+
+        deserializer.deserialize_i64(I64Visitor)
+    }
 }
 
 /// An IPv4 socket address representable by a compact format.
@@ -322,6 +394,49 @@ impl core::fmt::Display for CompactAddrV4 {
             "{}.{}.{}.{}:{}",
             self.0[0], self.0[1], self.0[2], self.0[3], port
         )
+    }
+}
+
+impl Serialize for CompactAddrV4 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_bytes(&self.0)
+    }
+}
+
+impl<'a, 'de> Deserialize<'de> for CompactAddrV4
+where
+    'de: 'a,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct CompactAddrV4Visitor;
+
+        impl<'de> Visitor<'de> for CompactAddrV4Visitor {
+            type Value = CompactAddrV4;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("struct CompactAddrV4")
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match v.len() {
+                    6 => Ok(CompactAddrV4::from(
+                        <[u8; 6]>::try_from(v).expect("slice length is not correct"),
+                    )),
+                    l => Err(de::Error::invalid_length(l, &"a length of 6 bytes")),
+                }
+            }
+        }
+
+        deserializer.deserialize_bytes(CompactAddrV4Visitor)
     }
 }
 
@@ -421,6 +536,49 @@ impl core::fmt::Display for CompactAddrV6 {
     }
 }
 
+impl Serialize for CompactAddrV6 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_bytes(&self.0)
+    }
+}
+
+impl<'a, 'de> Deserialize<'de> for CompactAddrV6
+where
+    'de: 'a,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct CompactAddrV6Visitor;
+
+        impl<'de> Visitor<'de> for CompactAddrV6Visitor {
+            type Value = CompactAddrV6;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("struct CompactAddrV6")
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match v.len() {
+                    18 => Ok(CompactAddrV6::from(
+                        <[u8; 18]>::try_from(v).expect("slice length is not correct"),
+                    )),
+                    l => Err(de::Error::invalid_length(l, &"a length of 18 bytes")),
+                }
+            }
+        }
+
+        deserializer.deserialize_bytes(CompactAddrV6Visitor)
+    }
+}
+
 impl AsRef<[u8]> for CompactAddrV6 {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -510,6 +668,58 @@ impl From<CompactAddrV6> for CompactAddr {
     }
 }
 
+impl Serialize for CompactAddr {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::V4(value) => Serialize::serialize(value, serializer),
+            Self::V6(value) => Serialize::serialize(value, serializer),
+        }
+    }
+}
+
+impl<'a, 'de> Deserialize<'de> for CompactAddr
+where
+    'de: 'a,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct CompactAddrVisitor;
+
+        impl<'de> Visitor<'de> for CompactAddrVisitor {
+            type Value = CompactAddr;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("struct CompactAddr")
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                match v.len() {
+                    6 => Ok(CompactAddr::V4(CompactAddrV4::from(
+                        <[u8; 6]>::try_from(v).expect("slice length is not correct"),
+                    ))),
+                    18 => Ok(CompactAddr::V6(CompactAddrV6::from(
+                        <[u8; 18]>::try_from(v).expect("slice length is not correct"),
+                    ))),
+                    l => Err(de::Error::invalid_length(
+                        l,
+                        &"a length of either 6 or 18 bytes",
+                    )),
+                }
+            }
+        }
+
+        deserializer.deserialize_bytes(CompactAddrVisitor)
+    }
+}
+
 #[cfg(feature = "std")]
 impl From<SocketAddrV4> for CompactAddr {
     fn from(value: SocketAddrV4) -> Self {
@@ -544,62 +754,7 @@ impl From<CompactAddr> for SocketAddr {
     }
 }
 
-fn decode_addr_ipv4_list<B>(nodes: B) -> Result<Vec<AddrId<CompactAddrV4>>, Error>
-where
-    B: AsRef<[u8]>,
-{
-    let nodes = nodes.as_ref();
-
-    if nodes.len() % 26 != 0 {
-        return Err(Error::is_deserialize_error());
-    }
-
-    let addr_len = nodes.len() / 26;
-    Ok((0..addr_len)
-        .map(|i| {
-            let offset = i * 26;
-
-            let mut id: [u8; 20] = [0; 20];
-            id.copy_from_slice(&nodes[offset..offset + 20]);
-            let id = Id::from(id);
-
-            let mut compact_addr: [u8; 6] = [0; 6];
-            compact_addr.copy_from_slice(&nodes[offset + 20..offset + 26]);
-            AddrId::new(CompactAddrV4::from(compact_addr), id)
-        })
-        .collect::<Vec<_>>())
-}
-
-fn decode_addr_ipv6_list<B>(nodes6: B) -> Result<Vec<AddrId<CompactAddrV6>>, Error>
-where
-    B: AsRef<[u8]>,
-{
-    let nodes6 = nodes6.as_ref();
-
-    if nodes6.len() % 38 != 0 {
-        return Err(Error::is_deserialize_error());
-    }
-
-    let addr_len = nodes6.len() / 38;
-    Ok((0..addr_len)
-        .map(|i| {
-            let offset = i * 38;
-
-            let mut id: [u8; 20] = [0; 20];
-            id.copy_from_slice(&nodes6[offset..offset + 20]);
-            let id = Id::from(id);
-
-            let mut compact_addr: [u8; 18] = [0; 18];
-            compact_addr.copy_from_slice(&nodes6[offset + 20..offset + 38]);
-            let addr = CompactAddrV6::from(compact_addr);
-
-            AddrId::new(addr, id)
-        })
-        .collect::<Vec<_>>())
-}
-
 pub mod announce_peer;
-pub mod error;
 pub mod find_node;
 pub mod get_peers;
 pub mod ping;

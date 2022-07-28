@@ -28,7 +28,7 @@ alloc = ["bt_bencode/alloc", "gen_value/alloc", "serde/alloc", "serde_bytes/allo
 [dependencies]
 thiserror = "1.0"
 
-bt_bencode = { version = "0.6", default-features = false }
+bt_bencode = { version = "0.7", default-features = false }
 serde = { version = "1.0", default-features = false }
 serde_derive = { version = "1.0" }
 serde_bytes = { version = "0.11", default-features = false }

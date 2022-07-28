@@ -505,7 +505,10 @@ pub fn from_slice(buf: &[u8]) -> Result<(InfoHash, Metainfo), Error> {
         let raw_bytes_info_hash =
             InfoHash::with_bytes_and_meta_version(raw_metainfo_bytes.info, meta_version);
         if info_hash != raw_bytes_info_hash {
-            return Err(Error::BtBencode(bt_bencode::Error::InvalidDict));
+            return Err(Error::BtBencode(bt_bencode::Error::new(
+                bt_bencode::ErrorKind::InvalidDict,
+                0,
+            )));
         }
     }
 

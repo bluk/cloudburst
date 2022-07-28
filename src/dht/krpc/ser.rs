@@ -8,15 +8,14 @@
 
 //! Serialization of KRPC messages.
 
-use bt_bencode::Value;
 use serde::{ser::SerializeMap, Serialize, Serializer};
 use serde_bytes::Bytes;
 
 /// Query message.
 #[derive(Debug)]
-pub struct QueryMsg<'a> {
+pub struct QueryMsg<'a, T> {
     /// Query arguments
-    pub a: Option<&'a Value>,
+    pub a: T,
     /// Method name of query
     pub q: &'a Bytes,
     /// Transaction id
@@ -25,15 +24,16 @@ pub struct QueryMsg<'a> {
     pub v: Option<&'a Bytes>,
 }
 
-impl<'a> Serialize for QueryMsg<'a> {
+impl<'a, T> Serialize for QueryMsg<'a, T>
+where
+    T: Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let mut map = serializer.serialize_map(None)?;
-        if self.a.is_some() {
-            map.serialize_entry("a", &self.a)?;
-        }
+        map.serialize_entry("a", &self.a)?;
         map.serialize_entry("q", &self.q)?;
         map.serialize_entry("t", &self.t)?;
         if self.v.is_some() {
@@ -46,24 +46,25 @@ impl<'a> Serialize for QueryMsg<'a> {
 
 /// Response message.
 #[derive(Debug)]
-pub struct RespMsg<'a> {
+pub struct RespMsg<'a, T> {
     /// Return values
-    pub r: Option<&'a Value>,
+    pub r: T,
     /// Transaction id
     pub t: &'a Bytes,
     /// Client version
     pub v: Option<&'a Bytes>,
 }
 
-impl<'a> Serialize for RespMsg<'a> {
+impl<'a, T> Serialize for RespMsg<'a, T>
+where
+    T: Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let mut map = serializer.serialize_map(None)?;
-        if self.r.is_some() {
-            map.serialize_entry("r", &self.r)?;
-        }
+        map.serialize_entry("r", &self.r)?;
         map.serialize_entry("t", &self.t)?;
         if self.v.is_some() {
             map.serialize_entry("v", &self.v)?;
@@ -75,29 +76,61 @@ impl<'a> Serialize for RespMsg<'a> {
 
 /// Error message.
 #[derive(Debug)]
-pub struct ErrMsg<'a> {
+pub struct ErrMsg<'a, T> {
     /// Error details
-    pub e: Option<&'a Value>,
+    pub e: T,
     /// Transaction id
     pub t: &'a Bytes,
     /// Client version
     pub v: Option<&'a Bytes>,
 }
 
-impl<'a> Serialize for ErrMsg<'a> {
+impl<'a, T> Serialize for ErrMsg<'a, T>
+where
+    T: Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let mut map = serializer.serialize_map(None)?;
-        if self.e.is_some() {
-            map.serialize_entry("e", &self.e)?;
-        }
+        map.serialize_entry("e", &self.e)?;
         map.serialize_entry("t", &self.t)?;
         if self.v.is_some() {
             map.serialize_entry("v", &self.v)?;
         }
         map.serialize_entry("y", "e")?;
         map.end()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_bytes::Bytes;
+
+    use super::*;
+
+    use crate::dht::krpc::{Error, ErrorCode, Msg, Ty};
+
+    #[test]
+    fn test_serde_error() -> Result<(), Error> {
+        let encoded_error = b"d1:eli201e23:A Generic Error Ocurrede1:t2:aa1:y1:ee";
+
+        let error_msg: Msg<'_> = bt_bencode::from_slice(encoded_error)?;
+        assert_eq!(error_msg.ty(), Ty::Error);
+        assert_eq!(error_msg.tx_id(), b"aa".as_ref());
+        assert_eq!(
+            error_msg.error(),
+            Some((ErrorCode::GenericError, "A Generic Error Ocurred"))
+        );
+
+        let ser_error_msg = ErrMsg {
+            e: &(201, "A Generic Error Ocurred"),
+            t: Bytes::new(b"aa"),
+            v: None,
+        };
+        let ser_msg = bt_bencode::to_vec(&ser_error_msg).unwrap();
+        assert_eq!(ser_msg, encoded_error);
+        Ok(())
     }
 }
