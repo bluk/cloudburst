@@ -65,7 +65,7 @@ fn validate_path<P: AsRef<Path>>(path: P) -> Result<(), Error> {
 }
 
 #[cfg(feature = "std")]
-fn check_info(info: &super::Info) -> Result<(), Error> {
+fn check_info(info: &super::Info<'_>) -> Result<(), Error> {
     use super::MetaVersion;
 
     match info.meta_version() {
@@ -76,12 +76,12 @@ fn check_info(info: &super::Info) -> Result<(), Error> {
         MetaVersion::Unknown(_) => return Err(Error::UnknownMetaversion),
     }
 
-    let base_name = info.name();
+    let base_name = info.name;
     let piece_len = u64::from(info.piece_length());
     let pieces = info.pieces().ok_or(Error::MissingInfo)?;
 
-    if let Some(files) = info.files() {
-        if info.length().is_some() {
+    if let Some(files) = &info.files {
+        if info.length.is_some() {
             return Err(Error::InvalidFileInfo);
         }
         let mut paths = Vec::with_capacity(files.len());
@@ -106,7 +106,7 @@ fn check_info(info: &super::Info) -> Result<(), Error> {
         }
 
         Ok(())
-    } else if let Some(total_len) = info.length() {
+    } else if let Some(total_len) = info.length {
         let path = PathBuf::from(base_name);
         validate_path(path)?;
 
@@ -129,6 +129,6 @@ fn check_info(info: &super::Info) -> Result<(), Error> {
 ///
 /// If there is a validation error such as a missing required field.
 #[cfg(feature = "std")]
-pub fn check(metainfo: &super::Metainfo) -> Result<(), Error> {
-    check_info(metainfo.info())
+pub fn check(metainfo: &super::Metainfo<'_>) -> Result<(), Error> {
+    check_info(&metainfo.info)
 }

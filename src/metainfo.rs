@@ -9,22 +9,13 @@
 //! Information about what the torrent is for and how to join the peer to peer swarm.
 
 use crate::piece;
-use core::{borrow::Borrow, fmt};
+use core::{borrow::Borrow, fmt, slice::ChunksExact};
 use serde_derive::{Deserialize, Serialize};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
-use alloc::{
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{string::String, vec, vec::Vec};
 #[cfg(feature = "std")]
-use std::{
-    path::PathBuf,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use std::{path::PathBuf, string::String, vec, vec::Vec};
 
 pub mod validation;
 
@@ -55,28 +46,29 @@ impl From<u64> for MetaVersion {
     }
 }
 
-fn de_announce_list<'de, D>(deserializer: D) -> Result<Option<Vec<Vec<String>>>, D::Error>
+fn de_announce_list<'de, 'a, D>(deserializer: D) -> Result<Option<Vec<Vec<&'a str>>>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
+    'de: 'a,
 {
     use serde::de::{self, Visitor};
 
     struct AnnounceListOptionalVisitor;
 
     impl<'de> Visitor<'de> for AnnounceListOptionalVisitor {
-        type Value = Option<Vec<Vec<String>>>;
+        type Value = Option<Vec<Vec<&'de str>>>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             formatter.write_str("an announce list")
         }
 
-        fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+        fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
         where
             E: de::Error,
         {
             match core::str::from_utf8(v) {
                 Ok(s) => {
-                    let urls = s.split(',').map(|s| s.trim().to_string()).collect();
+                    let urls = s.split(',').map(str::trim).collect();
                     Ok(Some(vec![urls]))
                 }
                 Err(_) => Err(E::custom(String::from(
@@ -102,140 +94,64 @@ where
 
 /// Describes how to join a torrent and how to verify data from the torrent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Metainfo {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    announce: Option<String>,
-    #[serde(default)]
-    #[serde(rename = "announce-list", deserialize_with = "de_announce_list")]
-    announce_list: Option<Vec<Vec<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    comment: Option<String>,
-    #[serde(rename = "created by")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    created_by: Option<String>,
-    #[serde(rename = "creation date", skip_serializing_if = "Option::is_none")]
-    creation_date: Option<u64>,
-    info: Info,
-}
-
-impl Metainfo {
+pub struct Metainfo<'a> {
     /// URL of tracker
-    #[must_use]
-    pub fn announce(&self) -> Option<&str> {
-        self.announce.as_deref()
-    }
-
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    pub announce: Option<&'a str>,
     /// A multi-tier list of trackers.
     ///
     /// Optional extension described in [BEP 0012][bep_0012].
     ///
     /// [bep_0012]: http://bittorrent.org/beps/bep_0012.html
-    #[must_use]
-    pub fn announce_list(&self) -> Option<&[Vec<String>]> {
-        self.announce_list
-            .as_ref()
-            .map(core::convert::AsRef::as_ref)
-    }
-
+    #[serde(default)]
+    #[serde(
+        rename = "announce-list",
+        deserialize_with = "de_announce_list",
+        borrow
+    )]
+    pub announce_list: Option<Vec<Vec<&'a str>>>,
     /// An optional free-form comment about the torrent.
-    #[must_use]
-    pub fn comment(&self) -> Option<&str> {
-        self.comment.as_deref()
-    }
-
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub comment: Option<&'a str>,
     /// An optional string about what program created the torrent.
-    #[must_use]
-    pub fn created_by(&self) -> Option<&str> {
-        self.created_by.as_deref()
-    }
-
+    #[serde(rename = "created by")]
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    pub created_by: Option<&'a str>,
     /// The number of seconds since UNIX epoch time to indicate when the torrent was created.
-    #[must_use]
-    pub fn creation_date(&self) -> Option<u64> {
-        self.creation_date
-    }
-
+    #[serde(rename = "creation date", skip_serializing_if = "Option::is_none")]
+    pub creation_date: Option<u64>,
     /// Information about the torrent's data.
-    #[must_use]
-    pub fn info(&self) -> &Info {
-        &self.info
-    }
+    #[serde(borrow)]
+    pub info: Info<'a>,
 }
 
-fn de_pieces<'de, D>(deserializer: D) -> Result<Option<Vec<[u8; 20]>>, D::Error>
-where
-    D: serde::de::Deserializer<'de>,
-{
-    use serde::de::{self, Visitor};
-
-    struct PiecesVisitor;
-
-    impl<'de> Visitor<'de> for PiecesVisitor {
-        type Value = Option<Vec<[u8; 20]>>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            formatter.write_str("a pieces value")
-        }
-
-        fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            if v.len() % 20 != 0 {
-                return Err(E::custom(String::from("pieces is not divisible by 20")));
-            }
-
-            let mut value = Vec::with_capacity(v.len() / 20);
-            (0..(v.len())).step_by(20).for_each(|offset| {
-                value.push(<[u8; 20]>::try_from(&v[offset..offset + 20]).unwrap());
-            });
-            Ok(Some(value))
-        }
-    }
-
-    deserializer.deserialize_byte_buf(PiecesVisitor)
-}
-
-fn ser_pieces<S>(pieces: &Option<Vec<[u8; 20]>>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::ser::Serializer,
-{
-    if let Some(pieces) = pieces {
-        let bytes = pieces.concat();
-        serializer.serialize_bytes(&bytes)
-    } else {
-        serializer.serialize_none()
-    }
-}
+impl<'a> Metainfo<'a> {}
 
 /// Information about the data exchanged in the torrent.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
-pub struct Info {
-    name: String,
+pub struct Info<'a> {
+    /// Name of the suggested file/folder to save as.
+    #[serde(borrow)]
+    pub name: &'a str,
+    /// The number of bytes for each piece of a file, except the last one which is the leftover bytes.
     #[serde(rename = "piece length")]
-    piece_length: u64,
+    pub piece_length: u64,
+    /// If a single file, then the length of the file. If multiple files, None.
     #[serde(skip_serializing_if = "Option::is_none")]
-    length: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    files: Option<Vec<File>>,
+    pub length: Option<u64>,
+    /// If multiple files, a list of file information.
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    pub files: Option<Vec<File<'a>>>,
+    /// The SHA1 hashes of each piece
     #[serde(default)]
-    #[serde(
-        deserialize_with = "de_pieces",
-        serialize_with = "ser_pieces",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pieces: Option<Vec<[u8; 20]>>,
+    #[serde(skip_serializing_if = "Option::is_none", borrow)]
+    pub pieces: Option<&'a [u8]>,
+    /// The version of the specification used.
     #[serde(rename = "meta version", skip_serializing_if = "Option::is_none")]
-    meta_version: Option<u64>,
+    pub meta_version: Option<u64>,
 }
 
-impl Info {
-    /// Name of the suggested file/folder to save as.
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
+impl<'a> Info<'a> {
     /// The number of bytes for each piece of a file, except the last one which is the leftover bytes.
     ///
     /// # Panics
@@ -274,22 +190,10 @@ impl Info {
             }
     }
 
-    /// If a single file, then the length of the file. If multiple files, None.
-    #[must_use]
-    pub fn length(&self) -> Option<u64> {
-        self.length
-    }
-
-    /// If multiple files, a list of file information.
-    #[must_use]
-    pub fn files(&self) -> Option<&[File]> {
-        self.files.as_deref()
-    }
-
     /// The SHA1 hashes of each piece
     #[must_use]
-    pub fn pieces(&self) -> Option<&[[u8; 20]]> {
-        self.pieces.as_ref().map(core::convert::AsRef::as_ref)
+    pub fn pieces(&self) -> Option<ChunksExact<'_, u8>> {
+        self.pieces.map(|pieces| pieces.chunks_exact(20))
     }
 
     /// The maximum piece index.
@@ -323,12 +227,13 @@ impl Info {
 
 /// File specific information in the torrent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct File {
+pub struct File<'a> {
     length: u64,
-    path: Vec<String>,
+    #[serde(borrow)]
+    path: Vec<&'a str>,
 }
 
-impl File {
+impl<'a> File<'a> {
     /// The length of the file.
     #[must_use]
     pub fn length(&self) -> u64 {
@@ -337,7 +242,7 @@ impl File {
 
     /// The path of the file.
     #[must_use]
-    pub fn path(&self) -> &[String] {
+    pub fn path(&self) -> &[&str] {
         self.path.as_ref()
     }
 
@@ -478,7 +383,7 @@ impl From<validation::Error> for Error {
 ///
 /// Returns an error if there is a deserialization or validation error such as
 /// a required field for the [Metainfo] is missing.
-pub fn from_slice(buf: &[u8]) -> Result<(InfoHash, Metainfo), Error> {
+pub fn from_slice<'a>(buf: &'a [u8]) -> Result<(InfoHash, Metainfo<'a>), Error> {
     let torrent_value: bt_bencode::Value = bt_bencode::from_slice(buf)?;
 
     let info: &bt_bencode::Value = torrent_value
@@ -498,10 +403,10 @@ pub fn from_slice(buf: &[u8]) -> Result<(InfoHash, Metainfo), Error> {
 
     {
         #[derive(Debug, Deserialize)]
-        struct MetainfoBytes {
-            info: serde_bytes::ByteBuf,
+        struct MetainfoBytes<'a> {
+            info: &'a [u8],
         }
-        let raw_metainfo_bytes: MetainfoBytes = bt_bencode::from_slice(buf)?;
+        let raw_metainfo_bytes: MetainfoBytes<'_> = bt_bencode::from_slice(buf)?;
         let raw_bytes_info_hash =
             InfoHash::with_bytes_and_meta_version(raw_metainfo_bytes.info, meta_version);
         if info_hash != raw_bytes_info_hash {
@@ -512,7 +417,7 @@ pub fn from_slice(buf: &[u8]) -> Result<(InfoHash, Metainfo), Error> {
         }
     }
 
-    let metainfo: Metainfo = bt_bencode::from_value(torrent_value)?;
+    let metainfo: Metainfo<'_> = bt_bencode::from_slice(buf)?;
 
     Ok((info_hash, metainfo))
 }

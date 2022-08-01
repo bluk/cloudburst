@@ -39,33 +39,30 @@ fn test_deserialize_torrent_file_via_type() -> Result<(), bt_bencode::Error> {
     // dbg!(&metainfo);
 
     assert_eq!(
-        metainfo.announce(),
+        metainfo.announce,
         Some("https://torrent.ubuntu.com/announce")
     );
     assert_eq!(
-        metainfo.announce_list(),
-        Some(
-            vec![
-                vec![String::from("https://torrent.ubuntu.com/announce")],
-                vec![String::from("https://ipv6.torrent.ubuntu.com/announce")]
-            ]
-            .as_ref()
-        )
+        metainfo.announce_list,
+        Some(vec![
+            vec!["https://torrent.ubuntu.com/announce"],
+            vec!["https://ipv6.torrent.ubuntu.com/announce"]
+        ])
     );
-    assert_eq!(metainfo.comment(), Some("Ubuntu CD releases.ubuntu.com"));
-    assert_eq!(metainfo.created_by(), Some("mktorrent 1.1"));
-    assert_eq!(metainfo.creation_date(), Some(1_645_734_525));
+    assert_eq!(metainfo.comment, Some("Ubuntu CD releases.ubuntu.com"));
+    assert_eq!(metainfo.created_by, Some("mktorrent 1.1"));
+    assert_eq!(metainfo.creation_date, Some(1_645_734_525));
 
-    let info = metainfo.info();
+    let info = metainfo.info;
 
-    assert_eq!(info.name(), "ubuntu-20.04.4-live-server-amd64.iso");
+    assert_eq!(info.name, "ubuntu-20.04.4-live-server-amd64.iso");
     assert_eq!(
         info.piece_length(),
         cloudburst::piece::Length::from(262_144)
     );
-    assert_eq!(info.length(), Some(1_331_691_520));
+    assert_eq!(info.length, Some(1_331_691_520));
     assert_eq!(info.pieces().unwrap().len(), 5080);
-    assert!(info.files().is_none());
+    assert!(info.files.is_none());
 
     Ok(())
 }
