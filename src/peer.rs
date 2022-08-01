@@ -110,7 +110,7 @@ impl fmt::Display for LocalId {
 }
 
 /// Represents if a peer will fulfill block requests.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Choke {
     /// The peer will not fulfill block requests
     NotChoked,
@@ -119,7 +119,7 @@ pub enum Choke {
 }
 
 /// Represents if a peer will request blocks.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Interest {
     /// The peer does not want any pieces
     NotInterested,

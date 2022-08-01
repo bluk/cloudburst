@@ -23,7 +23,7 @@ use crate::{
 pub const PROTOCOL_STRING_BYTES: [u8; 20] = *b"\x13BitTorrent protocol";
 
 /// The reserved bytes in the handshake.
-#[derive(Default, Clone, Copy, PartialEq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct ReservedBytes(pub [u8; 8]);
 
 impl AsRef<[u8]> for ReservedBytes {
@@ -55,7 +55,7 @@ fmt_byte_array!(ReservedBytes);
 /// Message frame.
 ///
 /// An individual message.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Frame {
     /// Keep alive message
     ///
@@ -379,7 +379,7 @@ impl Frame {
 }
 
 /// Keep alive message.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeepAliveMsg;
 
 impl KeepAliveMsg {
@@ -391,7 +391,7 @@ impl KeepAliveMsg {
 }
 
 /// Choke message.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChokeMsg;
 
 impl ChokeMsg {
@@ -409,7 +409,7 @@ impl ChokeMsg {
 }
 
 /// Unchoke message.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnchokeMsg;
 
 impl UnchokeMsg {
@@ -427,7 +427,7 @@ impl UnchokeMsg {
 }
 
 /// Interested message.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InterestedMsg;
 
 impl InterestedMsg {
@@ -445,7 +445,7 @@ impl InterestedMsg {
 }
 
 /// Not interested message.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NotInterestedMsg;
 
 impl NotInterestedMsg {
@@ -463,7 +463,7 @@ impl NotInterestedMsg {
 }
 
 /// Have piece index message.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HaveMsg(pub Index);
 
 impl HaveMsg {
@@ -481,7 +481,7 @@ impl HaveMsg {
 }
 
 /// Bitfield of have piece indexes message.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct BitfieldMsg(pub Bytes);
 
 impl BitfieldMsg {
@@ -517,7 +517,7 @@ impl fmt::Debug for BitfieldMsg {
 }
 
 /// Request a block message.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RequestMsg(pub Block);
 
 impl RequestMsg {
@@ -535,7 +535,7 @@ impl RequestMsg {
 }
 
 /// Response fulfilling a block request with block data.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PieceMsg(pub BlockData);
 
 impl PieceMsg {
@@ -553,7 +553,7 @@ impl PieceMsg {
 }
 
 /// Cancels a block request message.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CancelMsg(pub Block);
 
 impl CancelMsg {
@@ -571,7 +571,7 @@ impl CancelMsg {
 }
 
 /// Identifies what completed parts of the handshake have been received.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReceivedHandshakeState {
     /// Have not received the complete protocol string yet.
     ///

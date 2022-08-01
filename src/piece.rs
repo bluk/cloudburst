@@ -228,7 +228,7 @@ impl Block {
 }
 
 /// Data within a piece.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct BlockData {
     /// The piece's index
     pub index: Index,
