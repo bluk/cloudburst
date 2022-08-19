@@ -257,13 +257,13 @@ impl Metrics {
     }
 
     /// Adds a frame's data to the sent metrics.
-    pub fn add_sent_frame(&mut self, frame: &Frame) {
+    pub fn add_sent_frame(&mut self, frame: &Frame<'_>) {
         self.current.sent.add_frame(frame);
         self.total.sent.add_frame(frame);
     }
 
     /// Adds a frame's data to the received metrics.
-    pub fn add_received_frame(&mut self, frame: &Frame) {
+    pub fn add_received_frame(&mut self, frame: &Frame<'_>) {
         self.current.received.add_frame(frame);
         self.total.received.add_frame(frame);
     }
@@ -1065,7 +1065,7 @@ where
     pub fn on_read_piece(
         &mut self,
         peer_id: SessionId<PeerGen, PeerIndex>,
-        _piece_msg: &PieceMsg,
+        _piece_msg: &PieceMsg<'_>,
         next_read: Duration,
         now: Instant,
     ) -> Result<(), InvalidInput> {
@@ -1193,7 +1193,7 @@ where
     pub fn on_read_bitfield(
         &mut self,
         peer_id: SessionId<PeerGen, PeerIndex>,
-        bitfield_msg: &BitfieldMsg,
+        bitfield_msg: &BitfieldMsg<'_>,
         next_read: Duration,
         now: Instant,
     ) -> Result<(), InvalidInput> {
@@ -1205,7 +1205,7 @@ where
             // tracing::trace!(?peer_id, "invalid bitfield message");
             return Err(InvalidInput);
         }
-        *have_pieces = IndexBitfield::from_slice(&bitfield_msg.0, have_pieces.max_index());
+        *have_pieces = IndexBitfield::from_slice(bitfield_msg.0, have_pieces.max_index());
 
         Ok(())
     }

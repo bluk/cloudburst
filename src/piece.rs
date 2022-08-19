@@ -30,7 +30,6 @@
 //!
 //! The received data can be verified to be correct by data in the metainfo.
 
-use bytes::Bytes;
 use core::{cmp::Ordering, fmt};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
@@ -229,25 +228,25 @@ impl Block {
 
 /// Data within a piece.
 #[derive(Clone, PartialEq, Eq)]
-pub struct BlockData {
+pub struct BlockData<'a> {
     /// The piece's index
     pub index: Index,
     /// The starting byte offset within the piece
     pub begin: BlockBegin,
     /// The data starting at the `begin` offset within the piece `index`
-    pub data: Bytes,
+    pub data: &'a [u8],
 }
 
-impl From<(Index, BlockBegin, Bytes)> for BlockData {
-    fn from(value: (Index, BlockBegin, Bytes)) -> Self {
+impl<'a> From<(Index, BlockBegin, &'a [u8])> for BlockData<'a> {
+    fn from(value: (Index, BlockBegin, &'a [u8])) -> Self {
         BlockData::new(value.0, value.1, value.2)
     }
 }
 
-impl BlockData {
+impl<'a> BlockData<'a> {
     /// Instantiates a block data.
     #[must_use]
-    pub const fn new(index: Index, begin: BlockBegin, data: Bytes) -> Self {
+    pub const fn new(index: Index, begin: BlockBegin, data: &'a [u8]) -> Self {
         Self { index, begin, data }
     }
 
@@ -258,6 +257,7 @@ impl BlockData {
     /// # Panics
     ///
     /// Panics if the data's length is greater than a [u32].
+    #[must_use]
     pub fn to_block(&self) -> Block {
         Block {
             index: self.index,
@@ -267,7 +267,7 @@ impl BlockData {
     }
 }
 
-impl fmt::Debug for BlockData {
+impl<'a> fmt::Debug for BlockData<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BlockData")
             .field("index", &self.index)

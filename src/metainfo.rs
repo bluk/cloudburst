@@ -383,7 +383,7 @@ impl From<validation::Error> for Error {
 ///
 /// Returns an error if there is a deserialization or validation error such as
 /// a required field for the [Metainfo] is missing.
-pub fn from_slice<'a>(buf: &'a [u8]) -> Result<(InfoHash, Metainfo<'a>), Error> {
+pub fn from_slice(buf: &[u8]) -> Result<(InfoHash, Metainfo<'_>), Error> {
     let torrent_value: bt_bencode::Value = bt_bencode::from_slice(buf)?;
 
     let info: &bt_bencode::Value = torrent_value

@@ -10,7 +10,7 @@
 //!
 //! [Frame] enumerates the various known messages.
 
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::Buf;
 use core::{borrow::Borrow, fmt};
 
 use crate::{
@@ -56,7 +56,7 @@ fmt_byte_array!(ReservedBytes);
 ///
 /// An individual message.
 #[derive(Debug, PartialEq, Eq)]
-pub enum Frame {
+pub enum Frame<'a> {
     /// Keep alive message
     ///
     /// Keeps the connection alive.
@@ -130,7 +130,7 @@ pub enum Frame {
     ///
     /// * Must only be sent as the first message after the handshake.
     /// * Should only be sent if the local peer has any pieces.
-    Bitfield(BitfieldMsg),
+    Bitfield(BitfieldMsg<'a>),
     /// Request block message
     ///
     /// Indicates the peer wants a block of data.
@@ -148,7 +148,7 @@ pub enum Frame {
     /// Should be sent at least in the following situations:
     ///
     /// * Must only be sent if a request has been previously received for the data.
-    Piece(PieceMsg),
+    Piece(PieceMsg<'a>),
     /// Cancel block request message
     ///
     /// Indicates the peer no longer wants a block of data.
@@ -161,7 +161,7 @@ pub enum Frame {
     /// * Usually sent if the local peer no longer wants a piece of data
     Cancel(CancelMsg),
     /// An unknown message with the message type byte and the message data
-    Unknown(u8, Bytes),
+    Unknown(u8, &'a [u8]),
 }
 
 /// Protocol error.
@@ -184,7 +184,7 @@ pub enum Error {
 /// The expected maximum length of a message to be sent.
 pub const MAX_EXPECTED_FRAME_LEN: usize = 1 + 4 + 4 + 16384;
 
-impl Frame {
+impl<'a> Frame<'a> {
     /// Checks the buffer to verify the buffer contains a complete valid frame.
     ///
     /// # Errors
@@ -202,18 +202,16 @@ impl Frame {
         }
 
         let msg_len = cursor.get_u32();
-        let msg_len = usize::try_from(msg_len).unwrap();
+        if msg_len == 0 {
+            return Ok(());
+        }
 
+        let msg_len = usize::try_from(msg_len).unwrap();
         if msg_len > MAX_EXPECTED_FRAME_LEN {
             return Err(Error::MessageLengthTooLarge(msg_len));
         }
-
         if cursor.remaining() < msg_len {
             return Err(Error::IncompleteFrame);
-        }
-
-        if msg_len == 0 {
-            return Ok(());
         }
 
         let ty = cursor.get_u8();
@@ -281,27 +279,27 @@ impl Frame {
     /// # Panics
     ///
     /// Panics if the message length cannot be converted into a [usize].
-    pub fn parse(buf: &mut BytesMut) -> Result<Self, Error> {
+    pub fn parse(buf: &'a [u8]) -> Result<Self, Error> {
         if buf.remaining() < 4 {
             return Err(Error::IncompleteFrame);
         }
 
-        let msg_len = buf.get_u32();
-        let msg_len = usize::try_from(msg_len).unwrap();
-
-        if msg_len > MAX_EXPECTED_FRAME_LEN {
-            return Err(Error::MessageLengthTooLarge(msg_len));
-        }
-
-        if buf.remaining() < msg_len {
-            return Err(Error::IncompleteFrame);
-        }
-
+        let msg_len = u32::from_be_bytes(<[u8; 4]>::try_from(&buf[..4]).unwrap());
         if msg_len == 0 {
             return Ok(Self::KeepAlive);
         }
 
-        let ty = buf.get_u8();
+        let msg_len = usize::try_from(msg_len).unwrap();
+        if msg_len > MAX_EXPECTED_FRAME_LEN {
+            return Err(Error::MessageLengthTooLarge(msg_len));
+        }
+
+        let buf = &buf[4..];
+        if buf.remaining() < msg_len {
+            return Err(Error::IncompleteFrame);
+        }
+
+        let ty = buf[0];
         match ty {
             ChokeMsg::TYPE => {
                 if msg_len != ChokeMsg::LEN {
@@ -331,20 +329,26 @@ impl Frame {
                 if msg_len != HaveMsg::LEN {
                     return Err(Error::InvalidMessageLength);
                 }
-                let index = Index::from(buf.get_u32());
+                let index =
+                    Index::from(u32::from_be_bytes(<[u8; 4]>::try_from(&buf[1..5]).unwrap()));
                 Ok(Self::Have(HaveMsg(index)))
             }
             BitfieldMsg::TYPE => {
-                let bitfield = buf.split_to(msg_len - 1);
-                Ok(Self::Bitfield(BitfieldMsg(bitfield.freeze())))
+                todo!()
+                // let bitfield = buf.split_to(msg_len - 1);
+                // Ok(Self::Bitfield(BitfieldMsg(bitfield.freeze())))
             }
             RequestMsg::TYPE => {
                 if msg_len != RequestMsg::LEN {
                     return Err(Error::InvalidMessageLength);
                 }
-                let index = Index::from(buf.get_u32());
-                let begin = BlockBegin::from(buf.get_u32());
-                let length = BlockLength::from(buf.get_u32());
+                let index =
+                    Index::from(u32::from_be_bytes(<[u8; 4]>::try_from(&buf[1..5]).unwrap()));
+                let begin =
+                    BlockBegin::from(u32::from_be_bytes(<[u8; 4]>::try_from(&buf[5..9]).unwrap()));
+                let length = BlockLength::from(u32::from_be_bytes(
+                    <[u8; 4]>::try_from(&buf[9..13]).unwrap(),
+                ));
                 Ok(Self::Request(RequestMsg(Block {
                     index,
                     begin,
@@ -352,28 +356,32 @@ impl Frame {
                 })))
             }
             PieceMsg::TYPE => {
-                let index = Index::from(buf.get_u32());
-                let begin = BlockBegin::from(buf.get_u32());
-                let data = buf.split_to(msg_len - 1 - 4 - 4).freeze();
+                let index =
+                    Index::from(u32::from_be_bytes(<[u8; 4]>::try_from(&buf[1..5]).unwrap()));
+                let begin =
+                    BlockBegin::from(u32::from_be_bytes(<[u8; 4]>::try_from(&buf[5..9]).unwrap()));
+                let length = msg_len - 1 - 4 - 4;
+                let data = &buf[9..9 + length];
                 Ok(Self::Piece(PieceMsg(BlockData { index, begin, data })))
             }
             CancelMsg::TYPE => {
                 if msg_len != CancelMsg::LEN {
                     return Err(Error::InvalidMessageLength);
                 }
-                let index = Index::from(buf.get_u32());
-                let begin = BlockBegin::from(buf.get_u32());
-                let length = BlockLength::from(buf.get_u32());
+                let index =
+                    Index::from(u32::from_be_bytes(<[u8; 4]>::try_from(&buf[1..5]).unwrap()));
+                let begin =
+                    BlockBegin::from(u32::from_be_bytes(<[u8; 4]>::try_from(&buf[5..9]).unwrap()));
+                let length = BlockLength::from(u32::from_be_bytes(
+                    <[u8; 4]>::try_from(&buf[9..13]).unwrap(),
+                ));
                 Ok(Self::Cancel(CancelMsg(Block {
                     index,
                     begin,
                     length,
                 })))
             }
-            ty => {
-                let data = buf.split_to(msg_len - 1);
-                Ok(Self::Unknown(ty, data.freeze()))
-            }
+            ty => Ok(Self::Unknown(ty, &buf[1..1 + msg_len - 1])),
         }
     }
 }
@@ -482,9 +490,9 @@ impl HaveMsg {
 
 /// Bitfield of have piece indexes message.
 #[derive(Clone, PartialEq, Eq)]
-pub struct BitfieldMsg(pub Bytes);
+pub struct BitfieldMsg<'a>(pub &'a [u8]);
 
-impl BitfieldMsg {
+impl<'a> BitfieldMsg<'a> {
     /// Message type identifier.
     pub const TYPE: u8 = 5;
 
@@ -493,14 +501,15 @@ impl BitfieldMsg {
     /// # Panics
     ///
     /// Panics if the size of the bitfield is greater than a [u32].
+    #[must_use]
     pub fn msg_len(&self) -> u32 {
         1 + (u32::try_from(self.0.len()).unwrap())
     }
 }
 
-impl fmt::Debug for BitfieldMsg {
+impl<'a> fmt::Debug for BitfieldMsg<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct BytesDebug<'a>(&'a Bytes);
+        struct BytesDebug<'a>(&'a [u8]);
         impl<'a> fmt::Debug for BytesDebug<'a> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 for b in self.0.iter() {
@@ -511,7 +520,7 @@ impl fmt::Debug for BitfieldMsg {
         }
 
         f.debug_tuple("BitfieldMsg")
-            .field(&BytesDebug(&self.0))
+            .field(&BytesDebug(self.0))
             .finish()
     }
 }
@@ -536,9 +545,9 @@ impl RequestMsg {
 
 /// Response fulfilling a block request with block data.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PieceMsg(pub BlockData);
+pub struct PieceMsg<'a>(pub BlockData<'a>);
 
-impl PieceMsg {
+impl<'a> PieceMsg<'a> {
     /// Message type identifier.
     pub const TYPE: u8 = 7;
 
@@ -547,6 +556,7 @@ impl PieceMsg {
     /// # Panics
     ///
     /// Panics if the length of the data is greater than a [u32].
+    #[must_use]
     pub fn msg_len(&self) -> u32 {
         1 + 4 + 4 + u32::try_from(self.0.data.len()).unwrap()
     }
@@ -658,7 +668,7 @@ impl Metrics {
 
     /// Increases the metrics for a piece message.
     #[inline]
-    pub fn add_piece(&mut self, piece_msg: &PieceMsg) {
+    pub fn add_piece(&mut self, piece_msg: &PieceMsg<'_>) {
         let piece_bytes = piece_msg.0.data.len() as u64;
         self.piece_bytes = self.piece_bytes.saturating_add(piece_bytes);
         self.piece_msgs = self.piece_msgs.saturating_add(1);
@@ -708,7 +718,7 @@ impl Metrics {
 
     /// Increases the metrics for a bitfield message.
     #[inline]
-    pub fn add_bitfield(&mut self, bitfield_msg: &BitfieldMsg) {
+    pub fn add_bitfield(&mut self, bitfield_msg: &BitfieldMsg<'_>) {
         let bitfield_msg_len = u64::from(bitfield_msg.msg_len() - 1);
         self.bitfield_msgs = self.bitfield_msgs.saturating_add(1);
         self.bitfield_bytes = self.bitfield_bytes.saturating_add(bitfield_msg_len);
@@ -723,7 +733,7 @@ impl Metrics {
     /// Adds a frame's info to the metrics.
     ///
     /// Useful to add a frame's metrics to the overall metrics.
-    pub fn add_frame(&mut self, frame: &Frame) {
+    pub fn add_frame(&mut self, frame: &Frame<'_>) {
         match frame {
             Frame::Request(_) => self.add_request(),
             Frame::Piece(piece_msg) => self.add_piece(piece_msg),
