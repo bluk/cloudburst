@@ -10,7 +10,6 @@
 //!
 //! Peers have [Id]s and [Choke] and [Interest] states.
 
-use bytes::Bytes;
 use core::{borrow::Borrow, fmt, time::Duration};
 use gen_value::{index::Allocator, unmanaged::UnmanagedGenVec, Incrementable};
 use serde_derive::{Deserialize, Serialize};
@@ -1134,7 +1133,7 @@ where
         &mut self,
         peer_id: SessionId<PeerGen, PeerIndex>,
         _msg_type: u8,
-        _msg_data: &Bytes,
+        _msg_data: &[u8],
         next_read: Duration,
         now: Instant,
     ) -> Result<(), InvalidInput> {
