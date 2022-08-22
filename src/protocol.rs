@@ -15,7 +15,7 @@ use core::{borrow::Borrow, fmt};
 
 use crate::{
     metainfo::InfoHash,
-    peer::Id,
+    peer::{self, Id, InvalidInput},
     piece::{Block, BlockBegin, BlockData, BlockLength, Index},
 };
 
@@ -607,6 +607,92 @@ pub enum ReceivedHandshakeState {
 impl Default for ReceivedHandshakeState {
     fn default() -> Self {
         Self::None(0)
+    }
+}
+
+/// Parses a handshake based on the current state.
+///
+/// Advances the buffer if any data is consumed.
+///
+/// If the next part of the handshake is completely received, then returns the next state. Otherwise, it returns None.
+///
+/// # Errors
+///
+/// If an invalid protocol input is received, returns an `InvalidInput`.
+pub fn parse_handshake<B>(
+    buf: &mut B,
+    state: &ReceivedHandshakeState,
+) -> Result<Option<ReceivedHandshakeState>, InvalidInput>
+where
+    B: Buf,
+{
+    match state {
+        ReceivedHandshakeState::None(mut handshake_offset) => {
+            let offset = handshake_offset;
+            for _ in offset..core::cmp::min(20, buf.remaining()) {
+                if PROTOCOL_STRING_BYTES[handshake_offset] != buf.get_u8() {
+                    return Err(InvalidInput);
+                }
+                handshake_offset += 1;
+            }
+
+            debug_assert!(handshake_offset <= 20);
+            if handshake_offset == 20 {
+                Ok(Some(ReceivedHandshakeState::ReceivedProtocol))
+            } else {
+                Ok(Some(ReceivedHandshakeState::None(handshake_offset)))
+            }
+        }
+        ReceivedHandshakeState::ReceivedProtocol => {
+            if buf.remaining() < 8 {
+                return Ok(None);
+            }
+
+            let reserved_bytes = {
+                let mut tmp: [u8; 8] = [0; 8];
+                buf.copy_to_slice(&mut tmp);
+                ReservedBytes::from(tmp)
+            };
+
+            Ok(Some(ReceivedHandshakeState::ReceivedReservedBytes(
+                reserved_bytes,
+            )))
+        }
+        ReceivedHandshakeState::ReceivedReservedBytes(reserved_bytes) => {
+            if buf.remaining() < 20 {
+                return Ok(None);
+            }
+
+            let info_hash = {
+                let mut tmp: [u8; 20] = [0; 20];
+                buf.copy_to_slice(&mut tmp);
+                InfoHash::from(tmp)
+            };
+            Ok(Some(
+                ReceivedHandshakeState::ReceivedReservedBytesAndInfoHash(
+                    *reserved_bytes,
+                    info_hash,
+                ),
+            ))
+        }
+        ReceivedHandshakeState::ReceivedReservedBytesAndInfoHash(reserved_bytes, info_hash) => {
+            if buf.remaining() < 20 {
+                return Ok(None);
+            }
+
+            let peer_id = {
+                let mut tmp: [u8; 20] = [0; 20];
+                buf.copy_to_slice(&mut tmp);
+                peer::Id::from(tmp)
+            };
+
+            Ok(Some(ReceivedHandshakeState::ReceivedHandshake(
+                *reserved_bytes,
+                *info_hash,
+                peer_id,
+            )))
+        }
+        ReceivedHandshakeState::ReceivedHandshake(..) => Ok(None),
     }
 }
 
