@@ -181,6 +181,13 @@ pub enum Error {
     InvalidMessageLength,
 }
 
+#[cfg(feature = "std")]
+impl From<Error> for std::io::Error {
+    fn from(error: Error) -> Self {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, error)
+    }
+}
+
 /// The expected maximum length of a message to be sent.
 pub const MAX_EXPECTED_FRAME_LEN: usize = 1 + 4 + 4 + 16384;
 

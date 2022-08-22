@@ -55,6 +55,18 @@ impl fmt::Display for Error {
     }
 }
 
+#[cfg(feature = "std")]
+impl From<Error> for std::io::Error {
+    fn from(error: Error) -> Self {
+        match error.kind {
+            ErrorKind::BtBencode(error) => std::io::Error::new(std::io::ErrorKind::Other, error),
+            ErrorKind::InvalidCompactAddr => {
+                std::io::Error::new(std::io::ErrorKind::InvalidInput, error)
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 enum ErrorKind {
     BtBencode(bt_bencode::Error),

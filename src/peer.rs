@@ -672,6 +672,13 @@ where
 #[cfg_attr(feature = "std", error("an identifier could not be allocated"))]
 pub struct CouldNotAllocateId;
 
+#[cfg(feature = "std")]
+impl From<CouldNotAllocateId> for std::io::Error {
+    fn from(error: CouldNotAllocateId) -> Self {
+        std::io::Error::new(std::io::ErrorKind::Other, error)
+    }
+}
+
 /// Invalid input was received from a peer.
 ///
 /// The expectation is that the peer will be disconnected from.
@@ -679,6 +686,13 @@ pub struct CouldNotAllocateId;
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[cfg_attr(feature = "std", error("peer sent invalid input"))]
 pub struct InvalidInput;
+
+#[cfg(feature = "std")]
+impl From<InvalidInput> for std::io::Error {
+    fn from(error: InvalidInput) -> Self {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, error)
+    }
+}
 
 /// Stores and updates the state of peers.
 ///

@@ -373,6 +373,16 @@ impl From<validation::Error> for Error {
     }
 }
 
+#[cfg(feature = "std")]
+impl From<Error> for std::io::Error {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::BtBencode(error) => std::io::Error::new(std::io::ErrorKind::Other, error),
+            Error::Validation(error) => std::io::Error::from(error),
+        }
+    }
+}
+
 /// Reads `Metainfo`.
 ///
 /// # Important

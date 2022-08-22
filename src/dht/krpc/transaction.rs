@@ -154,6 +154,15 @@ impl Error {
     }
 }
 
+#[cfg(feature = "std")]
+impl From<Error> for std::io::Error {
+    fn from(error: Error) -> Self {
+        match error.kind {
+            ErrorKind::UnknownTx => std::io::Error::new(std::io::ErrorKind::Other, error),
+        }
+    }
+}
+
 #[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[derive(Debug)]
 enum ErrorKind {

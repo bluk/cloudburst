@@ -37,6 +37,20 @@ pub enum Error {
 }
 
 #[cfg(feature = "std")]
+impl From<Error> for std::io::Error {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::NoFileInfo
+            | Error::InvalidPath
+            | Error::DuplicatePaths
+            | Error::InvalidFileInfo
+            | Error::UnknownMetaversion
+            | Error::MissingInfo => std::io::Error::new(std::io::ErrorKind::InvalidData, error),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
 fn validate_path<P: AsRef<Path>>(path: P) -> Result<(), Error> {
     use std::path::Component;
 

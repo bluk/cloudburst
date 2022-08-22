@@ -283,6 +283,13 @@ impl<'a> fmt::Debug for BlockData<'a> {
 #[cfg_attr(feature = "std", error("invalid bitfield"))]
 pub struct InvalidBitfieldError;
 
+#[cfg(feature = "std")]
+impl From<InvalidBitfieldError> for std::io::Error {
+    fn from(error: InvalidBitfieldError) -> Self {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, error)
+    }
+}
+
 /// Verifies a bitfield has the expected length and has no bits set beyond the maximum piece index.
 ///
 /// # Errors
