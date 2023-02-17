@@ -7,8 +7,8 @@ on:
 
 jobs:
   build_and_test:
-    uses: bluk/actions-workflows/.github/workflows/rust-build-test-std-alloc-multi-platform.yml@a556bfbdc9cfffd3255a0ea6b0379f23e93b05ab
+    uses: bluk/actions-workflows/.github/workflows/rust-build-test-std-alloc-multi-platform.yml@e1224b81a3735f4e26fd9c88228a2af1403ed548
   clippy:
-    uses: bluk/actions-workflows/.github/workflows/rust-clippy.yml@a556bfbdc9cfffd3255a0ea6b0379f23e93b05ab
+    uses: bluk/actions-workflows/.github/workflows/rust-clippy.yml@e1224b81a3735f4e26fd9c88228a2af1403ed548
   rustfmt:
-    uses: bluk/actions-workflows/.github/workflows/rust-rustfmt.yml@a556bfbdc9cfffd3255a0ea6b0379f23e93b05ab
+    uses: bluk/actions-workflows/.github/workflows/rust-rustfmt.yml@e1224b81a3735f4e26fd9c88228a2af1403ed548
