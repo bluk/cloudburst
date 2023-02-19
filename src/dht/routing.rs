@@ -40,7 +40,7 @@ where
 ///
 /// Buckets may occasionally need to be refreshed if there is no activity for
 /// the nodes within the bucket.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bucket<T, Instant> {
     range: RangeInclusive<Id>,
     nodes: Vec<T>,
@@ -499,7 +499,7 @@ mod internal {
 ///
 /// More data for nodes which are "closer" to the pivot is stored compared to
 /// data which is "farther" from the pivot `Id`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Table<T, Instant> {
     pivot: Id,
     buckets: Vec<Bucket<T, Instant>>,
