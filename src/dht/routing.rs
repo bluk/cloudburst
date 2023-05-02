@@ -407,7 +407,7 @@ mod internal {
         #[test]
         fn test_debug() {
             let node_id = Id::max();
-            let debug_str = format!("{:?}", node_id);
+            let debug_str = format!("{node_id:?}");
             assert_eq!(debug_str, "Id(FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)");
         }
 

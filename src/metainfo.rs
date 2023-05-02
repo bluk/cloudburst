@@ -170,9 +170,7 @@ impl<'a> Info<'a> {
     #[must_use]
     pub fn length_for_piece(&self, index: piece::Index) -> piece::Length {
         if u32::from(index) == u32::try_from(self.pieces.as_ref().unwrap().len() - 1).unwrap() {
-            piece::Length::from(
-                u32::try_from(self.total_size() % self.piece_length as u64).unwrap(),
-            )
+            piece::Length::from(u32::try_from(self.total_size() % self.piece_length).unwrap())
         } else {
             self.piece_length()
         }
@@ -183,11 +181,7 @@ impl<'a> Info<'a> {
     pub fn block_count_for_piece(&self, index: piece::Index) -> u32 {
         let piece_len = self.length_for_piece(index);
         (u32::from(piece_len) / piece::BlockLength::MAX)
-            + if u32::from(piece_len) % piece::BlockLength::MAX == 0 {
-                0
-            } else {
-                1
-            }
+            + u32::from(u32::from(piece_len) % piece::BlockLength::MAX != 0)
     }
 
     /// The SHA1 hashes of each piece
@@ -448,27 +442,27 @@ mod tests {
             "8EFA979AD7627693BA91D48E941F025BAE78CB77"
         ));
         assert_eq!(
-            format!("{:X}", info_hash),
+            format!("{info_hash:X}"),
             "8EFA979AD7627693BA91D48E941F025BAE78CB77"
         );
         assert_eq!(
-            format!("{:#X}", info_hash),
+            format!("{info_hash:#X}"),
             "0x8EFA979AD7627693BA91D48E941F025BAE78CB77"
         );
         assert_eq!(
-            format!("{:x}", info_hash),
+            format!("{info_hash:x}"),
             "8efa979ad7627693ba91d48e941f025bae78cb77"
         );
         assert_eq!(
-            format!("{:#x}", info_hash),
+            format!("{info_hash:#x}"),
             "0x8efa979ad7627693ba91d48e941f025bae78cb77"
         );
         assert_eq!(
-            format!("{:b}", info_hash),
+            format!("{info_hash:b}"),
             "10001110111110101001011110011010110101111100010111011010010011101110101001000111010100100011101001010011111101011011101011101111000110010111110111"
         );
         assert_eq!(
-            format!("{:#b}", info_hash),
+            format!("{info_hash:#b}"),
             "0b10001110111110101001011110011010110101111100010111011010010011101110101001000111010100100011101001010011111101011011101011101111000110010111110111"
         );
     }

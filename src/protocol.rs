@@ -520,7 +520,7 @@ impl<'a> fmt::Debug for BitfieldMsg<'a> {
         impl<'a> fmt::Debug for BytesDebug<'a> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 for b in self.0.iter() {
-                    write!(f, "{:02x}", b)?;
+                    write!(f, "{b:02x}")?;
                 }
                 Ok(())
             }

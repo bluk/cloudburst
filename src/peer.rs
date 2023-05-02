@@ -102,7 +102,7 @@ impl From<LocalId> for Id {
 impl fmt::Display for LocalId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for b in &(self.0).0 {
-            write!(f, "{:02x}", b)?;
+            write!(f, "{b:02x}")?;
         }
         Ok(())
     }
@@ -1214,7 +1214,7 @@ where
         state.read_deadline = now + next_read;
 
         let have_pieces = &mut self.have_pieces[peer_id];
-        if piece::verify_bitfield(have_pieces.max_index(), &bitfield_msg.0).is_err() {
+        if piece::verify_bitfield(have_pieces.max_index(), bitfield_msg.0).is_err() {
             // tracing::trace!(?peer_id, "invalid bitfield message");
             return Err(InvalidInput);
         }

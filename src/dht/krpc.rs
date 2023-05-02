@@ -544,7 +544,7 @@ impl core::fmt::Display for CompactAddrV6 {
         let port = <[u8; 2]>::try_from(&self.0[16..18]).unwrap();
         let port = u16::from_be_bytes(port);
 
-        write!(f, "]:{}", port)
+        write!(f, "]:{port}")
     }
 }
 
@@ -786,8 +786,8 @@ mod tests {
         let socket_addr_v4 = SocketAddrV4::new(ipv4_addr, 6881);
         let compact_addr_v4 = CompactAddrV4::from(socket_addr_v4);
         assert_eq!(
-            format!("{}", compact_addr_v4),
-            format!("{}:6881", ipv4_addr_str)
+            format!("{compact_addr_v4}"),
+            format!("{ipv4_addr_str}:6881")
         );
     }
 
@@ -798,8 +798,8 @@ mod tests {
         let socket_addr_v6 = SocketAddrV6::new(ipv6_addr, 6881, 0, 0);
         let compact_addr_v6 = CompactAddrV6::from(socket_addr_v6);
         assert_eq!(
-            format!("{}", compact_addr_v6),
-            format!("[{}]:6881", ipv6_addr_str)
+            format!("{compact_addr_v6}"),
+            format!("[{ipv6_addr_str}]:6881")
         );
     }
 }
