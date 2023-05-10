@@ -92,6 +92,8 @@ where
     deserializer.deserialize_any(AnnounceListOptionalVisitor)
 }
 
+const PIECE_HASH_LEN: usize = 20;
+
 /// Describes how to join a torrent and how to verify data from the torrent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Metainfo<'a> {
@@ -169,7 +171,9 @@ impl<'a> Info<'a> {
     /// Panics if the piece length is greater than a [u32] or if there is no piece data.
     #[must_use]
     pub fn length_for_piece(&self, index: piece::Index) -> piece::Length {
-        if u32::from(index) == u32::try_from(self.pieces.as_ref().unwrap().len() - 1).unwrap() {
+        if u32::from(index)
+            == u32::try_from(self.pieces.unwrap().len() / PIECE_HASH_LEN - 1).unwrap()
+        {
             piece::Length::from(u32::try_from(self.total_size() % self.piece_length).unwrap())
         } else {
             self.piece_length()
@@ -187,7 +191,8 @@ impl<'a> Info<'a> {
     /// The SHA1 hashes of each piece
     #[must_use]
     pub fn pieces(&self) -> Option<ChunksExact<'_, u8>> {
-        self.pieces.map(|pieces| pieces.chunks_exact(20))
+        self.pieces
+            .map(|pieces| pieces.chunks_exact(PIECE_HASH_LEN))
     }
 
     /// The maximum piece index.
@@ -198,8 +203,7 @@ impl<'a> Info<'a> {
     #[must_use]
     pub fn max_index(&self) -> Option<piece::Index> {
         self.pieces
-            .as_ref()
-            .map(|pieces| piece::Index::from(u32::try_from(pieces.len()).unwrap()))
+            .map(|pieces| piece::Index::from(u32::try_from(pieces.len() / PIECE_HASH_LEN).unwrap()))
     }
 
     /// The total size of all the files.
