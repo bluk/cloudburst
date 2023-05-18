@@ -406,6 +406,25 @@ where
         }
     }
 
+    /// Returns the local interest.
+    ///
+    /// # Important
+    ///
+    /// The state may not have been sent yet. For instance, the local session
+    /// could have set the state to be interested, but the message has not been sent
+    /// to the peer.
+    #[must_use]
+    #[inline]
+    fn local_interest_as_local_sees(&self) -> Interest {
+        match self.local_interest {
+            SendState::NotSent(state) => state,
+            SendState::Sent(state) => match state {
+                Interest::Interested => Interest::NotInterested,
+                Interest::NotInterested => Interest::Interested,
+            },
+        }
+    }
+
     /// Returns the local choke state last sent to the remote.
     #[must_use]
     #[inline]
@@ -419,104 +438,31 @@ where
         }
     }
 
+    /// Returns the local choke state.
+    ///
+    /// # Important
+    ///
+    /// The state may not have been sent yet. For instance, the local session
+    /// could have set the state to be choked, but the message has not been sent
+    /// to the peer.
+    #[must_use]
+    #[inline]
+    fn local_choke_as_local_sees(&self) -> Choke {
+        match self.local_choke {
+            SendState::NotSent(state) => state,
+            SendState::Sent(state) => match state {
+                Choke::Choked => Choke::NotChoked,
+                Choke::NotChoked => Choke::Choked,
+            },
+        }
+    }
+
     /// Returns true if the remote peer is in state where it can send requests.
     #[must_use]
     #[inline]
-    fn remote_unchoked_and_interested(&self) -> bool {
+    fn unchoked_and_remote_interested(&self) -> bool {
         self.remote_interest == Interest::Interested
-            && self.local_choke_as_remote_sees() == Choke::NotChoked
-    }
-
-    /// Choke the remote peer.
-    ///
-    /// Returns true if the peer should write out its state.
-    #[must_use]
-    fn choke(&mut self) -> bool {
-        match self.local_choke {
-            SendState::NotSent(choke_state) => match choke_state {
-                Choke::Choked => true,
-                Choke::NotChoked => {
-                    self.local_choke = SendState::Sent(Choke::Choked);
-                    true
-                }
-            },
-            SendState::Sent(choke_state) => match choke_state {
-                Choke::Choked => false,
-                Choke::NotChoked => {
-                    self.local_choke = SendState::NotSent(Choke::Choked);
-                    true
-                }
-            },
-        }
-    }
-
-    /// Unchoke the remote peer.
-    ///
-    /// Returns true if the peer should write out its state.
-    #[must_use]
-    fn unchoke(&mut self) -> bool {
-        match self.local_choke {
-            SendState::NotSent(choke_state) => match choke_state {
-                Choke::Choked => {
-                    self.local_choke = SendState::Sent(Choke::NotChoked);
-                    true
-                }
-                Choke::NotChoked => true,
-            },
-            SendState::Sent(choke_state) => match choke_state {
-                Choke::Choked => {
-                    self.local_choke = SendState::NotSent(Choke::NotChoked);
-                    true
-                }
-                Choke::NotChoked => false,
-            },
-        }
-    }
-
-    /// Indicate interest in the remote peer.
-    ///
-    /// Returns true if the peer should write out its state.
-    #[must_use]
-    fn interested(&mut self) -> bool {
-        match self.local_interest {
-            SendState::NotSent(state) => match state {
-                Interest::Interested => true,
-                Interest::NotInterested => {
-                    self.local_interest = SendState::Sent(Interest::Interested);
-                    true
-                }
-            },
-            SendState::Sent(state) => match state {
-                Interest::Interested => false,
-                Interest::NotInterested => {
-                    self.local_interest = SendState::NotSent(Interest::Interested);
-                    true
-                }
-            },
-        }
-    }
-
-    /// Indicate not interested in the remote peer.
-    ///
-    /// Returns true if the peer should write out its state.
-    #[must_use]
-    fn not_interested(&mut self) -> bool {
-        match self.local_interest {
-            SendState::NotSent(state) => match state {
-                Interest::Interested => {
-                    self.local_interest = SendState::Sent(Interest::NotInterested);
-                    true
-                }
-                Interest::NotInterested => true,
-            },
-            SendState::Sent(state) => match state {
-                Interest::Interested => {
-                    self.local_interest = SendState::NotSent(Interest::NotInterested);
-                    true
-                }
-                Interest::NotInterested => false,
-            },
-        }
+            && self.local_choke_as_local_sees() == Choke::NotChoked
     }
 
     /// Returns true if there is a state change ready to be sent.
@@ -577,18 +523,11 @@ where
     pub fn choke(&mut self, next_state_change: Duration, now: Instant) -> Option<Choke> {
         if self.state.next_choke_deadline <= now {
             match self.state.local_choke {
-                SendState::NotSent(choke_state) => match choke_state {
-                    Choke::Choked => {
-                        self.state.local_choke = SendState::Sent(choke_state);
-                        self.state.next_choke_deadline = now + next_state_change;
-                        return Some(Choke::Choked);
-                    }
-                    Choke::NotChoked => {
-                        self.state.local_choke = SendState::Sent(choke_state);
-                        self.state.next_choke_deadline = now + next_state_change;
-                        return Some(Choke::NotChoked);
-                    }
-                },
+                SendState::NotSent(choke_state) => {
+                    self.state.local_choke = SendState::Sent(choke_state);
+                    self.state.next_choke_deadline = now + next_state_change;
+                    return Some(choke_state);
+                }
                 SendState::Sent(_) => {}
             }
         }
@@ -607,18 +546,12 @@ where
     pub fn interest(&mut self, next_state_change: Duration, now: Instant) -> Option<Interest> {
         if self.state.next_interest_deadline <= now {
             match self.state.local_interest {
-                SendState::NotSent(interest_state) => match interest_state {
-                    Interest::Interested => {
-                        self.state.local_interest = SendState::Sent(interest_state);
-                        self.state.next_interest_deadline = now + next_state_change;
-                        return Some(Interest::Interested);
-                    }
-                    Interest::NotInterested => {
-                        self.state.local_interest = SendState::Sent(interest_state);
-                        self.state.next_interest_deadline = now + next_state_change;
-                        return Some(Interest::NotInterested);
-                    }
-                },
+                SendState::NotSent(interest_state) => {
+                    self.state.local_interest = SendState::Sent(interest_state);
+                    self.state.next_interest_deadline = now + next_state_change;
+
+                    return Some(interest_state);
+                }
                 SendState::Sent(_) => {}
             }
         }
@@ -827,7 +760,7 @@ where
     #[inline]
     #[must_use]
     pub fn get_choke(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Choke {
-        self.state[peer_id].local_choke_as_remote_sees()
+        self.state[peer_id].local_choke_as_local_sees()
     }
 
     /// Returns the local interest state for the remote.
@@ -838,7 +771,7 @@ where
     #[inline]
     #[must_use]
     pub fn get_interest(&self, peer_id: SessionId<PeerGen, PeerIndex>) -> Interest {
-        self.state[peer_id].local_interest_as_remote_sees()
+        self.state[peer_id].local_interest_as_local_sees()
     }
 
     /// Returns the choke state from the remote for the local node.
@@ -917,12 +850,30 @@ where
     #[must_use]
     pub fn choke(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> bool {
         let state = &mut self.state[peer_id];
-        if state.remote_unchoked_and_interested() {
-            self.unchoked_and_interested_count =
-                self.unchoked_and_interested_count.checked_sub(1).unwrap();
+        match state.local_choke {
+            SendState::NotSent(choke_state) => match choke_state {
+                Choke::Choked => true,
+                Choke::NotChoked => {
+                    if state.remote_interest == Interest::Interested {
+                        self.unchoked_and_interested_count =
+                            self.unchoked_and_interested_count.checked_sub(1).unwrap();
+                    }
+                    state.local_choke = SendState::Sent(Choke::Choked);
+                    true
+                }
+            },
+            SendState::Sent(choke_state) => match choke_state {
+                Choke::Choked => false,
+                Choke::NotChoked => {
+                    if state.remote_interest == Interest::Interested {
+                        self.unchoked_and_interested_count =
+                            self.unchoked_and_interested_count.checked_sub(1).unwrap();
+                    }
+                    state.local_choke = SendState::NotSent(Choke::Choked);
+                    true
+                }
+            },
         }
-
-        state.choke()
     }
 
     /// Unchokes a peer.
@@ -935,12 +886,30 @@ where
     #[must_use]
     pub fn unchoke(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> bool {
         let state = &mut self.state[peer_id];
-        let should_write = state.unchoke();
-        if state.remote_unchoked_and_interested() {
-            self.unchoked_and_interested_count =
-                self.unchoked_and_interested_count.checked_add(1).unwrap();
+        match state.local_choke {
+            SendState::NotSent(choke_state) => match choke_state {
+                Choke::Choked => {
+                    if state.remote_interest == Interest::Interested {
+                        self.unchoked_and_interested_count =
+                            self.unchoked_and_interested_count.checked_add(1).unwrap();
+                    }
+                    state.local_choke = SendState::Sent(Choke::NotChoked);
+                    true
+                }
+                Choke::NotChoked => true,
+            },
+            SendState::Sent(choke_state) => match choke_state {
+                Choke::Choked => {
+                    if state.remote_interest == Interest::Interested {
+                        self.unchoked_and_interested_count =
+                            self.unchoked_and_interested_count.checked_add(1).unwrap();
+                    }
+                    state.local_choke = SendState::NotSent(Choke::NotChoked);
+                    true
+                }
+                Choke::NotChoked => false,
+            },
         }
-        should_write
     }
 
     /// Interested in peer.
@@ -953,7 +922,23 @@ where
     #[must_use]
     #[inline]
     pub fn interested(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> bool {
-        self.state[peer_id].interested()
+        let state = &mut self.state[peer_id];
+        match state.local_interest {
+            SendState::NotSent(interest_state) => match interest_state {
+                Interest::Interested => true,
+                Interest::NotInterested => {
+                    state.local_interest = SendState::Sent(Interest::Interested);
+                    true
+                }
+            },
+            SendState::Sent(interest_state) => match interest_state {
+                Interest::Interested => false,
+                Interest::NotInterested => {
+                    state.local_interest = SendState::NotSent(Interest::Interested);
+                    true
+                }
+            },
+        }
     }
 
     /// Not interested in peer.
@@ -966,7 +951,23 @@ where
     #[must_use]
     #[inline]
     pub fn not_interested(&mut self, peer_id: SessionId<PeerGen, PeerIndex>) -> bool {
-        self.state[peer_id].not_interested()
+        let state = &mut self.state[peer_id];
+        match state.local_interest {
+            SendState::NotSent(interest_state) => match interest_state {
+                Interest::Interested => {
+                    state.local_interest = SendState::Sent(Interest::NotInterested);
+                    true
+                }
+                Interest::NotInterested => true,
+            },
+            SendState::Sent(interest_state) => match interest_state {
+                Interest::Interested => {
+                    state.local_interest = SendState::NotSent(Interest::NotInterested);
+                    true
+                }
+                Interest::NotInterested => false,
+            },
+        }
     }
 
     /// Callback when a choke message is received from a peer.
@@ -1031,11 +1032,15 @@ where
     ) -> Result<(), InvalidInput> {
         let state = &mut self.state[peer_id];
         state.read_deadline = now + next_read;
-        state.remote_interest = Interest::Interested;
-        if state.remote_unchoked_and_interested() {
+        // Guard against re-entrancy. If the peer keeps sending "interested"
+        // messages, the count would be incorrect.
+        if state.remote_interest == Interest::NotInterested
+            && state.local_choke_as_local_sees() == Choke::NotChoked
+        {
             self.unchoked_and_interested_count =
                 self.unchoked_and_interested_count.checked_add(1).unwrap();
         }
+        state.remote_interest = Interest::Interested;
         Ok(())
     }
 
@@ -1057,7 +1062,7 @@ where
     ) -> Result<(), InvalidInput> {
         let state = &mut self.state[peer_id];
         state.read_deadline = now + next_read;
-        if state.remote_unchoked_and_interested() {
+        if state.unchoked_and_remote_interested() {
             self.unchoked_and_interested_count =
                 self.unchoked_and_interested_count.checked_sub(1).unwrap();
         }
@@ -1336,7 +1341,7 @@ where
         PeerGen: Clone + Incrementable,
         PeerIndex: Clone + Into<usize>,
     {
-        if self.state[peer_id.clone()].remote_unchoked_and_interested() {
+        if self.state[peer_id.clone()].unchoked_and_remote_interested() {
             self.unchoked_and_interested_count =
                 self.unchoked_and_interested_count.checked_sub(1).unwrap();
         }
