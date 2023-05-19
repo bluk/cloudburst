@@ -419,6 +419,18 @@ impl IndexBitfield {
         self.0.not_any()
     }
 
+    /// If not all piece indexes are set.
+    #[must_use]
+    pub fn not_all_set(&self) -> bool {
+        self.0.not_all()
+    }
+
+    /// If all piece indexes are set.
+    #[must_use]
+    pub fn all_set(&self) -> bool {
+        self.0.all()
+    }
+
     /// Returns an iterator for piece indexes which are set.
     ///
     /// # Panics
