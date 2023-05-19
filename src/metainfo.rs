@@ -164,6 +164,13 @@ impl<'a> Info<'a> {
         piece::Length::from(u32::try_from(self.piece_length).unwrap())
     }
 
+    /// Returns the last piece index.
+    #[inline]
+    #[must_use]
+    fn last_piece_index(&self) -> usize {
+        self.pieces.unwrap().len() / PIECE_HASH_LEN - 1
+    }
+
     /// The length of a specific piece.
     ///
     /// # Panics
@@ -171,10 +178,13 @@ impl<'a> Info<'a> {
     /// Panics if the piece length is greater than a [u32] or if there is no piece data.
     #[must_use]
     pub fn length_for_piece(&self, index: piece::Index) -> piece::Length {
-        if u32::from(index)
-            == u32::try_from(self.pieces.unwrap().len() / PIECE_HASH_LEN - 1).unwrap()
-        {
-            piece::Length::from(u32::try_from(self.total_size() % self.piece_length).unwrap())
+        if u32::from(index) == u32::try_from(self.last_piece_index()).unwrap() {
+            let remainder = self.total_size() % self.piece_length;
+            if remainder == 0 {
+                self.piece_length()
+            } else {
+                piece::Length::from(u32::try_from(remainder).unwrap())
+            }
         } else {
             self.piece_length()
         }
