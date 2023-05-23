@@ -30,7 +30,7 @@
 //!
 //! The received data can be verified to be correct by data in the metainfo.
 
-use core::{cmp::Ordering, fmt};
+use core::{cmp::Ordering, fmt, num::TryFromIntError};
 
 #[cfg(all(feature = "alloc", not(feature = "std")))]
 use alloc::{vec, vec::Vec};
@@ -88,6 +88,14 @@ impl From<Length> for u32 {
 impl From<Length> for u64 {
     fn from(value: Length) -> Self {
         u64::from(value.0)
+    }
+}
+
+impl TryFrom<Length> for usize {
+    type Error = TryFromIntError;
+
+    fn try_from(value: Length) -> Result<Self, Self::Error> {
+        usize::try_from(value.0)
     }
 }
 
