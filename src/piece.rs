@@ -43,6 +43,15 @@ use std::{vec, vec::Vec};
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Index(pub u32);
 
+impl Index {
+    /// Returns the current index - 1.
+    #[inline]
+    #[must_use]
+    pub fn prev(&self) -> Option<Index> {
+        self.0.checked_sub(1).map(Index)
+    }
+}
+
 impl From<u32> for Index {
     fn from(value: u32) -> Self {
         Index(value)
