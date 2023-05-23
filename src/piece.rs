@@ -121,6 +121,15 @@ impl PartialOrd<BlockBegin> for Length {
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct BlockBegin(pub u32);
 
+impl BlockBegin {
+    /// Return the block's index in a piece if blocks begin at multiples of
+    /// [`BlockLength::MAX`].
+    #[must_use]
+    pub const fn index(&self) -> u32 {
+        self.0 / BlockLength::MAX
+    }
+}
+
 impl From<u32> for BlockBegin {
     fn from(value: u32) -> Self {
         BlockBegin(value)
