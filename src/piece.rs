@@ -148,6 +148,14 @@ impl From<BlockBegin> for u64 {
     }
 }
 
+impl TryFrom<BlockBegin> for usize {
+    type Error = TryFromIntError;
+
+    fn try_from(value: BlockBegin) -> Result<Self, Self::Error> {
+        usize::try_from(value.0)
+    }
+}
+
 impl PartialEq<Length> for BlockBegin {
     fn eq(&self, other: &Length) -> bool {
         self.0 == other.0
@@ -185,6 +193,14 @@ impl From<BlockLength> for u32 {
 impl From<BlockLength> for u64 {
     fn from(value: BlockLength) -> Self {
         u64::from(value.0)
+    }
+}
+
+impl TryFrom<BlockLength> for usize {
+    type Error = TryFromIntError;
+
+    fn try_from(value: BlockLength) -> Result<Self, Self::Error> {
+        usize::try_from(value.0)
     }
 }
 
