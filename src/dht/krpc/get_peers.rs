@@ -138,9 +138,12 @@ impl<'a, V> RespValues<'a, V> {
             }
 
             Ok(nodes.chunks_exact(26).map(|bytes| {
-                let id = <[u8; 20]>::try_from(&bytes[..20]).expect("subslice cannot be copied");
-                let compact_addr =
-                    <[u8; 6]>::try_from(&bytes[20..]).expect("subslice cannot be copied");
+                let (Ok(id), Ok(compact_addr)) = (
+                    <[u8; 20]>::try_from(&bytes[..20]),
+                    <[u8; 6]>::try_from(&bytes[20..]),
+                ) else {
+                    unreachable!()
+                };
                 AddrId::new(CompactAddrV4::from(compact_addr), Id::from(id))
             }))
         })
@@ -160,9 +163,12 @@ impl<'a, V> RespValues<'a, V> {
             }
 
             Ok(nodes.chunks_exact(38).map(|bytes| {
-                let id = <[u8; 20]>::try_from(&bytes[..20]).expect("subslice cannot be copied");
-                let compact_addr =
-                    <[u8; 18]>::try_from(&bytes[20..]).expect("subslice cannot be copied");
+                let (Ok(id), Ok(compact_addr)) = (
+                    <[u8; 20]>::try_from(&bytes[..20]),
+                    <[u8; 18]>::try_from(&bytes[20..]),
+                ) else {
+                    unreachable!()
+                };
                 AddrId::new(CompactAddrV6::from(compact_addr), Id::from(id))
             }))
         })

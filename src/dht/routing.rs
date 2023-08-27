@@ -563,20 +563,20 @@ where
     #[must_use]
     #[inline]
     pub fn find(&self, id: &Id) -> &Bucket<T, Instant> {
-        self.buckets
-            .iter()
-            .find(|b| b.range.contains(id))
-            .expect("bucket should exist")
+        let Some(bucket) = self.buckets.iter().find(|b| b.range.contains(id)) else {
+            unreachable!("bucket should exist");
+        };
+        bucket
     }
 
     /// Finds the bucket which has the range containing the `id` argument.
     #[must_use]
     #[inline]
     pub fn find_mut(&mut self, id: &Id) -> &mut Bucket<T, Instant> {
-        self.buckets
-            .iter_mut()
-            .find(|b| b.range.contains(id))
-            .expect("bucket should exist")
+        let Some(bucket) = self.buckets.iter_mut().find(|b| b.range.contains(id)) else {
+            unreachable!("bucket should exist");
+        };
+        bucket
     }
 
     /// Finds a bucket which needs to be refreshed.
@@ -597,7 +597,9 @@ where
     ///
     /// The last bucket always contains the range which includes the pivot ID.
     pub fn split_last(&mut self) {
-        let bucket = self.buckets.pop().expect("bucket should exist");
+        let Some(bucket) = self.buckets.pop() else {
+            unreachable!("bucket should exist")
+        };
         debug_assert!(bucket.range.contains(&self.pivot));
         let (lower_bucket, upper_bucket) = bucket.split();
         if lower_bucket.range.contains(&self.pivot) {
@@ -610,9 +612,8 @@ where
         debug_assert!(self
             .buckets
             .last()
-            .expect("bucket should exist")
-            .range
-            .contains(&self.pivot));
+            .map(|b| { b.range.contains(&self.pivot) })
+            .unwrap_or_default());
     }
 }
 

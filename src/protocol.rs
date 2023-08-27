@@ -519,7 +519,7 @@ impl<'a> fmt::Debug for BitfieldMsg<'a> {
         struct BytesDebug<'a>(&'a [u8]);
         impl<'a> fmt::Debug for BytesDebug<'a> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                for b in self.0.iter() {
+                for b in self.0 {
                     write!(f, "{b:02x}")?;
                 }
                 Ok(())
