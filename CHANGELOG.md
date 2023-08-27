@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.0.4] - 2023-08-27
+
+### Fixed
+
+- Fix bug in pieces count in `Metainfo`
+
+- Fix piece length for last piece
+
+### Changed
+
+- Use borrowed types for KRPC messages and `Metainfo`
+
+- Parse frames using reference types
+
+- Use byte slice instead of `Bytes` for data parameter in `Session::on_read_unknown`.
+
+- Refactor choke/interest peer states based on local perspective of peer. Guard against re-entrancy.
+
+### Added
+
+- Derive `Eq` for protocol messages
+
+- Add `From` impls for Error
+
+- Add `protocol::parse_handshake` function
+
+- Derive `Clone` for DHT `Bucket` and `Table`
+
+- Add `all_set` and `not_all_set` to `IndexBitfield`
+
+- Add `prev` to `Index`
+
+- Add `TryFrom<Length>`, `TryFrom<BlockBegin>`, and `TryFrom<BlockLength>` for `usize`
+
+- Add `BlockBegin::index` method
+
 ## [0.0.3] - 2022-05-31
 
 ### Fixed
@@ -113,7 +149,8 @@
 
 - Initial release
 
-[Unreleased]: https://github.com/bluk/gen_value/compare/v0.0.3...HEAD
-[0.0.3]: https://github.com/bluk/gen_value/compare/v0.0.2...v0.0.3
-[0.0.2]: https://github.com/bluk/gen_value/compare/v0.0.1...v0.0.2
-[0.0.1]: https://github.com/bluk/gen_value/releases/tag/v0.0.1
+[Unreleased]: https://github.com/bluk/cloudburst/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/bluk/cloudburst/compare/v0.0.3...v0.0.4
+[0.0.3]: https://github.com/bluk/cloudburst/compare/v0.0.2...v0.0.3
+[0.0.2]: https://github.com/bluk/cloudburst/compare/v0.0.1...v0.0.2
+[0.0.1]: https://github.com/bluk/cloudburst/releases/tag/v0.0.1
