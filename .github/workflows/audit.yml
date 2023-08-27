@@ -1,5 +1,8 @@
 name: Rust Security Audit
 
+permissions:
+  contents: read
+
 on:
   push:
     paths:
@@ -9,4 +12,25 @@ on:
 
 jobs:
   audit:
-    uses: bluk/actions-workflows/.github/workflows/rust-audit.yml@e1224b81a3735f4e26fd9c88228a2af1403ed548
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        rust:
+          - stable
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt
+      - name: Rust Version
+        run: rustc --version
+      - run: cargo install cargo-audit
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - run: cargo generate-lockfile
+      - run: cargo audit --deny warnings
