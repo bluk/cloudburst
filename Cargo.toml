@@ -18,7 +18,7 @@ name = "cloudburst"
 readme = "README.md"
 repository = "https://github.com/bluk/cloudburst"
 rust-version = "1.65.0"
-version = "0.0.4"
+version = "0.0.5-alpha.2"
 
 [features]
 default = ["std"]
