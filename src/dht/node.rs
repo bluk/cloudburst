@@ -531,43 +531,21 @@ impl IdAllocator for Ipv6Addr {
 }
 
 #[cfg(test)]
-impl quickcheck::Arbitrary for Id {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Id {
-        Id::from([
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-            u8::arbitrary(g),
-        ])
-    }
-}
-
-#[cfg(test)]
 mod test {
     use super::*;
-    use quickcheck_macros::quickcheck;
 
     #[cfg(all(feature = "alloc", not(feature = "std")))]
     use alloc::format;
-
     #[cfg(feature = "std")]
     use std::format;
+
+    #[cfg(feature = "std")]
+    use proptest::prelude::*;
+
+    #[cfg(feature = "std")]
+    fn arb_id() -> impl Strategy<Value = Id> {
+        proptest::array::uniform20(any::<u8>()).prop_map(Id)
+    }
 
     #[test]
     fn test_debug() {
@@ -576,39 +554,53 @@ mod test {
         assert_eq!(debug_str, "Id(FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF)");
     }
 
-    #[quickcheck]
-    fn id_distance_commutative(id1: Id, id2: Id) -> bool {
-        id1.distance(id2) == id2.distance(id1)
-    }
-
     #[cfg(feature = "std")]
-    #[quickcheck]
-    fn make_only_valid_node_ids_for_ipv4(ip: Ipv4Addr, rand: Option<u8>) -> bool {
-        ip.is_valid(ip.rand_id(rand, &mut rand::thread_rng()).unwrap())
-    }
-
-    #[cfg(feature = "std")]
-    #[quickcheck]
-    fn make_only_valid_node_ids_for_ipv6(ip: Ipv6Addr, rand: Option<u8>) -> bool {
-        ip.is_valid(ip.rand_id(rand, &mut rand::thread_rng()).unwrap())
-    }
-
-    #[quickcheck]
-    #[allow(clippy::needless_pass_by_value)]
-    fn id_try_from_slice(values: Vec<u8>) -> bool {
-        if values.len() == 20 {
-            Id::try_from(values.as_slice()).is_ok()
-        } else {
-            Id::try_from(values.as_slice()).is_err()
+    proptest! {
+        #[allow(clippy::ignored_unit_patterns)]
+        #[test]
+        fn id_distance_commutative(
+            id1 in arb_id(),
+            id2 in arb_id()
+        ) {
+            assert_eq!(id1.distance(id2), id2.distance(id1));
         }
-    }
 
-    #[quickcheck]
-    fn id_cmp(id1: Id, id2: Id) -> bool {
-        match id1.cmp(&id2) {
-            Ordering::Equal => id2.cmp(&id1) == Ordering::Equal,
-            Ordering::Less => id2.cmp(&id1) == Ordering::Greater,
-            Ordering::Greater => id2.cmp(&id1) == Ordering::Less,
+        #[allow(clippy::ignored_unit_patterns)]
+        #[test]
+        fn make_only_valid_node_ids_for_ipv4(ip in any::<Ipv4Addr>(), rand in any::<Option<u8>>()) {
+            assert!(ip.is_valid(ip.rand_id(rand, &mut rand::thread_rng()).unwrap()));
+        }
+
+        #[allow(clippy::ignored_unit_patterns)]
+        #[test]
+        fn make_only_valid_node_ids_for_ipv6(ip in any::<Ipv6Addr>(), rand in any::<Option<u8>>()) {
+            assert!(ip.is_valid(ip.rand_id(rand, &mut rand::thread_rng()).unwrap()));
+        }
+
+        #[allow(clippy::ignored_unit_patterns)]
+        #[test]
+        fn id_try_from_slice(values in any::<Vec<u8>>()) {
+            if values.len() == 20 {
+                assert!(Id::try_from(values.as_slice()).is_ok());
+            } else {
+                assert!(Id::try_from(values.as_slice()).is_err());
+            }
+        }
+
+        #[allow(clippy::ignored_unit_patterns)]
+        #[test]
+        fn id_cmp(id1 in arb_id(), id2 in arb_id()) {
+            match id1.cmp(&id2) {
+                Ordering::Equal => {
+                    assert_eq!(id2.cmp(&id1), Ordering::Equal);
+                }
+                Ordering::Less => {
+                    assert_eq!(id2.cmp(&id1) , Ordering::Greater);
+                }
+                Ordering::Greater => {
+                    assert_eq!(id2.cmp(&id1) , Ordering::Less);
+                }
+            }
         }
     }
 
