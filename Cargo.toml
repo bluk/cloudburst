@@ -1,23 +1,24 @@
 [package]
-name = "cloudburst"
-version = "0.0.4"
-license = "MIT OR Apache-2.0"
 authors = ["Bryant Luk <code@bryantluk.com>"]
-edition = "2021"
-description = "A library to help with the implementation of torrent based protocols and algorithms."
-keywords = ["bittorrent", "torrent", "protocol", "p2p", "distributed"]
 categories = ["network-programming"]
-repository = "https://github.com/bluk/cloudburst"
+description = "A library to help with the implementation of torrent based protocols and algorithms."
 documentation = "https://docs.rs/cloudburst/"
-readme = "README.md"
+edition = "2021"
 include = [
   "src/**/*.rs",
   "Cargo.toml",
+  "CHANGELOG.md",
   "README.md",
   "LICENSE-APACHE",
   "LICENSE-MIT",
 ]
+keywords = ["bittorrent", "torrent", "protocol", "p2p", "distributed"]
+license = "MIT OR Apache-2.0"
+name = "cloudburst"
+readme = "README.md"
+repository = "https://github.com/bluk/cloudburst"
 rust-version = "1.65.0"
+version = "0.0.4"
 
 [features]
 default = ["std"]
