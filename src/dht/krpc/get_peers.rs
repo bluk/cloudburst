@@ -127,6 +127,7 @@ impl<'a, V> RespValues<'a, V> {
     }
 
     /// Returns IPv4 nodes which may have more relevant information for the torrent.
+    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     #[inline]
     pub fn nodes(&self) -> Option<Result<impl Iterator<Item = AddrId<CompactAddrV4>> + 'a, Error>> {
@@ -138,18 +139,15 @@ impl<'a, V> RespValues<'a, V> {
             }
 
             Ok(nodes.chunks_exact(26).map(|bytes| {
-                let (Ok(id), Ok(compact_addr)) = (
-                    <[u8; 20]>::try_from(&bytes[..20]),
-                    <[u8; 6]>::try_from(&bytes[20..]),
-                ) else {
-                    unreachable!()
-                };
+                let id = <[u8; 20]>::try_from(&bytes[..20]).unwrap();
+                let compact_addr = <[u8; 6]>::try_from(&bytes[20..]).unwrap();
                 AddrId::new(CompactAddrV4::from(compact_addr), Id::from(id))
             }))
         })
     }
 
     /// Returns IPv6 nodes which may have more relevant information for the torrent.
+    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     #[inline]
     pub fn nodes6(
@@ -163,12 +161,8 @@ impl<'a, V> RespValues<'a, V> {
             }
 
             Ok(nodes.chunks_exact(38).map(|bytes| {
-                let (Ok(id), Ok(compact_addr)) = (
-                    <[u8; 20]>::try_from(&bytes[..20]),
-                    <[u8; 18]>::try_from(&bytes[20..]),
-                ) else {
-                    unreachable!()
-                };
+                let id = <[u8; 20]>::try_from(&bytes[..20]).unwrap();
+                let compact_addr = <[u8; 18]>::try_from(&bytes[20..]).unwrap();
                 AddrId::new(CompactAddrV6::from(compact_addr), Id::from(id))
             }))
         })

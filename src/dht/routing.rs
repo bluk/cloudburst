@@ -55,7 +55,7 @@ where
     /// Creates a new `Bucket` for nodes which are within the inclusive `Id` range.
     #[must_use]
     #[inline]
-    pub const fn new(range: RangeInclusive<Id>, refresh_deadline: Instant) -> Self {
+    pub fn new(range: RangeInclusive<Id>, refresh_deadline: Instant) -> Self {
         Bucket {
             range,
             nodes: Vec::new(),
@@ -66,7 +66,7 @@ where
     /// Returns the bucket's `Id` range.
     #[must_use]
     #[inline]
-    pub const fn range(&self) -> &RangeInclusive<Id> {
+    pub fn range(&self) -> &RangeInclusive<Id> {
         &self.range
     }
 
@@ -87,7 +87,7 @@ where
     /// Returns the deadline which a `Node` from within the bucket's range should be pinged or found.
     #[must_use]
     #[inline]
-    pub const fn refresh_deadline(&self) -> &Instant {
+    pub fn refresh_deadline(&self) -> &Instant {
         &self.refresh_deadline
     }
 
@@ -529,7 +529,7 @@ where
     /// routing table compared to nodes which have an `Id` further away.
     #[must_use]
     #[inline]
-    pub const fn pivot(&self) -> Id {
+    pub fn pivot(&self) -> Id {
         self.pivot
     }
 
@@ -560,22 +560,24 @@ where
     }
 
     /// Finds the bucket which has the range containing the `id` argument.
+    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     #[inline]
     pub fn find(&self, id: &Id) -> &Bucket<T, Instant> {
-        let Some(bucket) = self.buckets.iter().find(|b| b.range.contains(id)) else {
-            unreachable!("bucket should exist");
-        };
+        let bucket = self.buckets.iter().find(|b| b.range.contains(id)).unwrap();
         bucket
     }
 
     /// Finds the bucket which has the range containing the `id` argument.
+    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     #[inline]
     pub fn find_mut(&mut self, id: &Id) -> &mut Bucket<T, Instant> {
-        let Some(bucket) = self.buckets.iter_mut().find(|b| b.range.contains(id)) else {
-            unreachable!("bucket should exist");
-        };
+        let bucket = self
+            .buckets
+            .iter_mut()
+            .find(|b| b.range.contains(id))
+            .unwrap();
         bucket
     }
 
@@ -596,10 +598,9 @@ where
     /// Splits the last bucket in half.
     ///
     /// The last bucket always contains the range which includes the pivot ID.
+    #[allow(clippy::missing_panics_doc)]
     pub fn split_last(&mut self) {
-        let Some(bucket) = self.buckets.pop() else {
-            unreachable!("bucket should exist")
-        };
+        let bucket = self.buckets.pop().unwrap();
         debug_assert!(bucket.range.contains(&self.pivot));
         let (lower_bucket, upper_bucket) = bucket.split();
         if lower_bucket.range.contains(&self.pivot) {
