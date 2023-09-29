@@ -20,6 +20,10 @@ jobs:
           - stable
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -28,9 +32,5 @@ jobs:
       - name: Rust Version
         run: rustc --version
       - run: cargo install cargo-audit
-      - name: Checkout sources
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: false
       - run: cargo generate-lockfile
       - run: cargo audit --deny warnings
