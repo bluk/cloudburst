@@ -9,7 +9,17 @@
 //! Serialization of KRPC messages.
 
 use serde::{ser::SerializeMap, Serialize, Serializer};
-use serde_bytes::Bytes;
+
+struct AsBytes<'a>(&'a [u8]);
+
+impl<'a> Serialize for AsBytes<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_bytes(self.0)
+    }
+}
 
 /// Query message.
 #[derive(Debug)]
@@ -17,11 +27,11 @@ pub struct QueryMsg<'a, T> {
     /// Query arguments
     pub a: T,
     /// Method name of query
-    pub q: &'a Bytes,
+    pub q: &'a [u8],
     /// Transaction id
-    pub t: &'a Bytes,
+    pub t: &'a [u8],
     /// Client version
-    pub v: Option<&'a Bytes>,
+    pub v: Option<&'a [u8]>,
 }
 
 impl<'a, T> Serialize for QueryMsg<'a, T>
@@ -34,10 +44,10 @@ where
     {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("a", &self.a)?;
-        map.serialize_entry("q", &self.q)?;
-        map.serialize_entry("t", &self.t)?;
-        if self.v.is_some() {
-            map.serialize_entry("v", &self.v)?;
+        map.serialize_entry("q", &AsBytes(self.q))?;
+        map.serialize_entry("t", &AsBytes(self.t))?;
+        if let Some(v) = &self.v {
+            map.serialize_entry("v", &AsBytes(v))?;
         }
         map.serialize_entry("y", "q")?;
         map.end()
@@ -50,9 +60,9 @@ pub struct RespMsg<'a, T> {
     /// Return values
     pub r: T,
     /// Transaction id
-    pub t: &'a Bytes,
+    pub t: &'a [u8],
     /// Client version
-    pub v: Option<&'a Bytes>,
+    pub v: Option<&'a [u8]>,
 }
 
 impl<'a, T> Serialize for RespMsg<'a, T>
@@ -65,9 +75,9 @@ where
     {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("r", &self.r)?;
-        map.serialize_entry("t", &self.t)?;
-        if self.v.is_some() {
-            map.serialize_entry("v", &self.v)?;
+        map.serialize_entry("t", &AsBytes(self.t))?;
+        if let Some(v) = self.v {
+            map.serialize_entry("v", &AsBytes(v))?;
         }
         map.serialize_entry("y", "r")?;
         map.end()
@@ -80,9 +90,9 @@ pub struct ErrMsg<'a, T> {
     /// Error details
     pub e: T,
     /// Transaction id
-    pub t: &'a Bytes,
+    pub t: &'a [u8],
     /// Client version
-    pub v: Option<&'a Bytes>,
+    pub v: Option<&'a [u8]>,
 }
 
 impl<'a, T> Serialize for ErrMsg<'a, T>
@@ -95,9 +105,9 @@ where
     {
         let mut map = serializer.serialize_map(None)?;
         map.serialize_entry("e", &self.e)?;
-        map.serialize_entry("t", &self.t)?;
-        if self.v.is_some() {
-            map.serialize_entry("v", &self.v)?;
+        map.serialize_entry("t", &AsBytes(self.t))?;
+        if let Some(v) = self.v {
+            map.serialize_entry("v", &AsBytes(v))?;
         }
         map.serialize_entry("y", "e")?;
         map.end()
@@ -106,8 +116,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use serde_bytes::Bytes;
-
     use super::*;
 
     use crate::dht::krpc::{Error, ErrorCode, Msg, Ty};
@@ -126,7 +134,7 @@ mod tests {
 
         let ser_error_msg = ErrMsg {
             e: &(201, "A Generic Error Ocurred"),
-            t: Bytes::new(b"aa"),
+            t: b"aa",
             v: None,
         };
         let ser_msg = bt_bencode::to_vec(&ser_error_msg).unwrap();

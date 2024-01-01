@@ -39,11 +39,11 @@ pub const METHOD_GET_PEERS: &[u8] = b"get_peers";
 #[derive(Debug, Deserialize, Serialize)]
 pub struct QueryArgs<'a> {
     /// The querying node's ID
-    #[serde(borrow)]
-    pub id: &'a Bytes,
+    #[serde(with = "serde_bytes")]
+    pub id: &'a [u8],
     /// The `InfoHash` associated with the torrent
-    #[serde(borrow)]
-    pub info_hash: &'a Bytes,
+    #[serde(with = "serde_bytes")]
+    pub info_hash: &'a [u8],
 }
 
 impl<'a> QueryArgs<'a> {
@@ -52,8 +52,8 @@ impl<'a> QueryArgs<'a> {
     #[inline]
     pub fn new(id: &'a LocalId, info_hash: &'a InfoHash) -> Self {
         Self {
-            id: Bytes::new(&(id.0).0),
-            info_hash: Bytes::new(&info_hash.0),
+            id: &(id.0).0,
+            info_hash: &info_hash.0,
         }
     }
 
@@ -61,14 +61,14 @@ impl<'a> QueryArgs<'a> {
     #[must_use]
     #[inline]
     pub fn id(&self) -> Option<Id> {
-        Id::try_from(self.id.as_ref()).ok()
+        Id::try_from(self.id).ok()
     }
 
     /// Returns the `InfoHash` for the relevant torrent.
     #[must_use]
     #[inline]
     pub fn info_hash(&self) -> Option<InfoHash> {
-        InfoHash::try_from(self.info_hash.as_ref()).ok()
+        InfoHash::try_from(self.info_hash).ok()
     }
 }
 
@@ -76,8 +76,8 @@ impl<'a> QueryArgs<'a> {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RespValues<'a, V> {
     /// The queried node's ID
-    #[serde(borrow)]
-    pub id: &'a Bytes,
+    #[serde(with = "serde_bytes")]
+    pub id: &'a [u8],
     /// IPv4 nodes which may have relevant information
     #[serde(skip_serializing_if = "Option::is_none", borrow)]
     pub nodes: Option<&'a Bytes>,
@@ -85,8 +85,8 @@ pub struct RespValues<'a, V> {
     #[serde(skip_serializing_if = "Option::is_none", borrow)]
     pub nodes6: Option<&'a Bytes>,
     /// An opaque token which can be used in an announce peer message.
-    #[serde(borrow)]
-    pub token: &'a Bytes,
+    #[serde(with = "serde_bytes")]
+    pub token: &'a [u8],
     /// Peer compact addresses
     #[serde(skip_serializing_if = "Option::is_none")]
     pub values: Option<V>,
@@ -98,13 +98,13 @@ impl<'a, V> RespValues<'a, V> {
     #[inline]
     pub fn new(
         id: &'a LocalId,
-        token: &'a Bytes,
+        token: &'a [u8],
         values: Option<V>,
         nodes: Option<&'a Bytes>,
         nodes6: Option<&'a Bytes>,
     ) -> Self {
         Self {
-            id: Bytes::new(&(id.0).0),
+            id: &(id.0).0,
             token,
             values,
             nodes,
@@ -116,7 +116,7 @@ impl<'a, V> RespValues<'a, V> {
     #[must_use]
     #[inline]
     pub fn id(&self) -> Option<Id> {
-        Id::try_from(self.id.as_ref()).ok()
+        Id::try_from(self.id).ok()
     }
 
     /// Returns the token which is used by the queried node for verification.
@@ -169,18 +169,18 @@ impl<'a, V> RespValues<'a, V> {
     }
 }
 
-impl<'a> RespValues<'a, Vec<&'a Bytes>> {
+impl<'a> RespValues<'a, Vec<&'a [u8]>> {
     /// Returns peers' socket addresses for the torrent.
     #[must_use]
     #[inline]
     pub fn values(&'a self) -> Option<impl Iterator<Item = CompactAddr> + 'a> {
         self.values.as_ref().map(|values| {
             values.iter().filter_map(|&v| match v.len() {
-                6 => <[u8; 6]>::try_from(v.as_ref())
+                6 => <[u8; 6]>::try_from(v)
                     .ok()
                     .map(CompactAddrV4::from)
                     .map(CompactAddr::from),
-                18 => <[u8; 18]>::try_from(v.as_ref())
+                18 => <[u8; 18]>::try_from(v)
                     .ok()
                     .map(CompactAddrV6::from)
                     .map(CompactAddr::from),
@@ -193,7 +193,6 @@ impl<'a> RespValues<'a, Vec<&'a Bytes>> {
 #[cfg(test)]
 mod tests {
     use bt_bencode::Error;
-    use serde_bytes::Bytes;
 
     use super::*;
 
@@ -221,9 +220,9 @@ mod tests {
         );
 
         let ser_query_msg = ser::QueryMsg {
-            t: Bytes::new(b"aa"),
+            t: b"aa",
             v: None,
-            q: Bytes::new(METHOD_GET_PEERS),
+            q: METHOD_GET_PEERS,
             a: query_args,
         };
         let ser_msg = bt_bencode::to_vec(&ser_query_msg)?;
@@ -252,7 +251,7 @@ mod tests {
         assert_eq!(msg.ty(), Ty::Response);
         assert_eq!(msg.client_version(), None);
 
-        let resp_values: RespValues<'_, Vec<&'_ Bytes>> = msg.values().unwrap()?;
+        let resp_values: RespValues<'_, Vec<&'_ [u8]>> = msg.values().unwrap()?;
         assert_eq!(resp_values.id(), Some(Id::from(*b"0123456789abcdefghij")));
         assert!(resp_values.values().is_none());
         assert_eq!(
@@ -262,7 +261,7 @@ mod tests {
         assert!(resp_values.nodes6().is_none());
 
         let ser_resp_msg = ser::RespMsg {
-            t: Bytes::new(b"aa"),
+            t: b"aa",
             v: None,
             r: &resp_values,
         };
@@ -289,15 +288,15 @@ mod tests {
         let values: Vec<CompactAddr> = vec![compact_addr_v4.into(), compact_addr_v6.into()];
 
         let resp_values: RespValues<'_, Vec<CompactAddr>> = RespValues {
-            id: Bytes::new(b"0123456789abcdefghij"),
+            id: b"0123456789abcdefghij",
             nodes: None,
             nodes6: None,
-            token: Bytes::new(b"abcd1234"),
+            token: b"abcd1234",
             values: Some(values),
         };
 
         let ser_resp_msg = ser::RespMsg {
-            t: Bytes::new(b"aa"),
+            t: b"aa",
             v: None,
             r: &resp_values,
         };
@@ -308,7 +307,7 @@ mod tests {
         assert_eq!(msg.ty(), Ty::Response);
         assert_eq!(msg.client_version(), None);
 
-        let resp_values: RespValues<'_, Vec<&'_ Bytes>> = msg.values().unwrap().unwrap();
+        let resp_values: RespValues<'_, Vec<&'_ [u8]>> = msg.values().unwrap().unwrap();
         assert_eq!(resp_values.id(), Some(Id::from(*b"0123456789abcdefghij")));
         assert_eq!(
             resp_values.values().unwrap().collect::<Vec<_>>(),

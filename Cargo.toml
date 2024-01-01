@@ -29,7 +29,7 @@ alloc = ["bt_bencode/alloc", "gen_value/alloc", "serde/alloc", "serde_bytes/allo
 
 [dependencies]
 bitvec = { version = "1.0", default-features = false }
-bt_bencode = { version = "0.7", default-features = false }
+bt_bencode = { version = "0.8", default-features = false }
 bytes = { version = "1.1", default-features = false }
 crc32c = "0.6"
 gen_value = { version = "0.7", default-features = false }

@@ -13,7 +13,6 @@ use serde::{
     de::{self, Visitor},
     Deserialize, Serialize,
 };
-use serde_bytes::{ByteBuf, Bytes};
 
 #[cfg(feature = "std")]
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
@@ -91,28 +90,6 @@ pub enum Ty {
 impl<'a> From<&'a [u8]> for Ty {
     fn from(y: &'a [u8]) -> Self {
         match y {
-            b"q" => Ty::Query,
-            b"r" => Ty::Response,
-            b"e" => Ty::Error,
-            _ => Ty::Unknown,
-        }
-    }
-}
-
-impl<'a> From<&'a Bytes> for Ty {
-    fn from(y: &'a Bytes) -> Self {
-        match y.as_ref() {
-            b"q" => Ty::Query,
-            b"r" => Ty::Response,
-            b"e" => Ty::Error,
-            _ => Ty::Unknown,
-        }
-    }
-}
-
-impl<'a> From<&'a ByteBuf> for Ty {
-    fn from(y: &'a ByteBuf) -> Self {
-        match y.as_slice() {
             b"q" => Ty::Query,
             b"r" => Ty::Response,
             b"e" => Ty::Error,
@@ -256,8 +233,8 @@ impl<'a> Msg<'a> {
 #[derive(Debug, serde_derive::Deserialize)]
 pub struct QueryArgs<'a> {
     /// The querying node's ID
-    #[serde(borrow)]
-    pub id: &'a Bytes,
+    #[serde(with = "serde_bytes")]
+    pub id: &'a [u8],
 }
 
 impl<'a> QueryArgs<'a> {
@@ -265,7 +242,7 @@ impl<'a> QueryArgs<'a> {
     #[must_use]
     #[inline]
     pub fn id(&self) -> Option<Id> {
-        Id::try_from(self.id.as_ref()).ok()
+        Id::try_from(self.id).ok()
     }
 }
 
@@ -273,8 +250,8 @@ impl<'a> QueryArgs<'a> {
 #[derive(Debug, serde_derive::Deserialize)]
 pub struct RespValues<'a> {
     /// The queried node's ID
-    #[serde(borrow)]
-    pub id: &'a Bytes,
+    #[serde(with = "serde_bytes")]
+    pub id: &'a [u8],
 }
 
 impl<'a> RespValues<'a> {
@@ -282,7 +259,7 @@ impl<'a> RespValues<'a> {
     #[must_use]
     #[inline]
     pub fn id(&self) -> Option<Id> {
-        Id::try_from(self.id.as_ref()).ok()
+        Id::try_from(self.id).ok()
     }
 }
 

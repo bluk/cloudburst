@@ -13,7 +13,6 @@
 //! [bep_0005]: http://bittorrent.org/beps/bep_0005.html
 
 use core::convert::TryFrom;
-use serde_bytes::Bytes;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::dht::node::{Id, LocalId};
@@ -25,8 +24,8 @@ pub const METHOD_PING: &[u8] = b"ping";
 #[derive(Debug, Deserialize, Serialize)]
 pub struct QueryArgs<'a> {
     /// The querying node's ID
-    #[serde(borrow)]
-    pub id: &'a Bytes,
+    #[serde(with = "serde_bytes")]
+    pub id: &'a [u8],
 }
 
 impl<'a> QueryArgs<'a> {
@@ -34,16 +33,14 @@ impl<'a> QueryArgs<'a> {
     #[must_use]
     #[inline]
     pub fn new(id: &'a LocalId) -> Self {
-        Self {
-            id: Bytes::new(&(id.0).0),
-        }
+        Self { id: &(id.0).0 }
     }
 
     /// Returns the querying node's ID.
     #[must_use]
     #[inline]
     pub fn id(&self) -> Option<Id> {
-        Id::try_from(self.id.as_ref()).ok()
+        Id::try_from(self.id).ok()
     }
 }
 
@@ -51,8 +48,8 @@ impl<'a> QueryArgs<'a> {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RespValues<'a> {
     /// The queried node's ID
-    #[serde(borrow)]
-    pub id: &'a Bytes,
+    #[serde(with = "serde_bytes")]
+    pub id: &'a [u8],
 }
 
 impl<'a> RespValues<'a> {
@@ -60,16 +57,14 @@ impl<'a> RespValues<'a> {
     #[must_use]
     #[inline]
     pub fn new(id: &'a LocalId) -> Self {
-        Self {
-            id: Bytes::new(&(id.0).0),
-        }
+        Self { id: &(id.0).0 }
     }
 
     /// Returns the queried node's ID.
     #[must_use]
     #[inline]
     pub fn id(&self) -> Option<Id> {
-        Id::try_from(self.id.as_ref()).ok()
+        Id::try_from(self.id).ok()
     }
 }
 
@@ -97,9 +92,9 @@ mod tests {
         assert_eq!(query_args.id(), Some(Id::from(*b"abcdefghij0123456789")));
 
         let ser_query_msg = ser::QueryMsg {
-            t: Bytes::new(b"aa"),
+            t: b"aa".as_slice(),
             v: None,
-            q: Bytes::new(METHOD_PING),
+            q: METHOD_PING,
             a: query_args,
         };
         let ser_msg = bt_bencode::to_vec(&ser_query_msg)?;
@@ -121,7 +116,7 @@ mod tests {
         assert_eq!(resp_values.id(), Some(Id::from(*b"mnopqrstuvwxyz123456")));
 
         let ser_resp_msg = ser::RespMsg {
-            t: Bytes::new(b"aa"),
+            t: b"aa".as_slice(),
             v: None,
             r: &resp_values,
         };
