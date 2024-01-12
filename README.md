@@ -10,7 +10,7 @@ Cloudburst is a library to help with [BitTorrent][bep_0003] implementations.
 
 ```toml
 [dependencies]
-cloudburst = "0.0.4"
+cloudburst = "0.0.5"
 ```
 
 ## License
