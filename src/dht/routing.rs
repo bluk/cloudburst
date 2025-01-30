@@ -381,10 +381,10 @@ mod internal {
 
         for idx in 0..data.len() {
             data[idx] = if lower_than_max {
-                rng.gen()
+                rng.random()
             } else {
                 let idx_val = end[idx];
-                let val = rng.gen_range(0..=idx_val);
+                let val = rng.random_range(0..=idx_val);
                 if val < idx_val {
                     lower_than_max = true;
                 }

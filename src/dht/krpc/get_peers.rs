@@ -239,7 +239,7 @@ mod tests {
 
         let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 1234);
         let compact_addr = CompactAddrV4::from(addr);
-        let node_id = addr.ip().rand_id(None, &mut rand::thread_rng()).unwrap();
+        let node_id = addr.ip().rand_id(None, &mut rand::rng()).unwrap();
         let mut get_peers_resp = vec![];
         get_peers_resp.extend_from_slice(b"d1:rd2:id20:0123456789abcdefghij5:nodes26:");
         get_peers_resp.extend_from_slice(node_id.as_ref());

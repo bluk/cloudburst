@@ -34,12 +34,12 @@ impl Id {
     /// # Errors
     ///
     /// Returns an error if the random number generator cannot fill a byte array.
-    pub fn rand<R>(rng: &mut R) -> Result<Self, rand::Error>
+    pub fn rand<R>(rng: &mut R) -> Result<Self, R::Error>
     where
-        R: rand::Rng,
+        R: rand::Rng + rand::TryRngCore,
     {
         let mut inner = [0u8; 2];
-        rng.try_fill(&mut inner)?;
+        rng.try_fill_bytes(&mut inner)?;
         Ok(Self(inner))
     }
 }

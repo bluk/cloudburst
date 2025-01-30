@@ -104,12 +104,12 @@ impl Id {
     /// # Errors
     ///
     /// If the random number generator cannot fill an array with random data.
-    pub fn rand<R>(rng: &mut R) -> Result<Id, rand::Error>
+    pub fn rand<R>(rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::Rng,
+        R: rand::TryRngCore,
     {
         let mut arr: [u8; 20] = [0; 20];
-        rng.try_fill(&mut arr[..])?;
+        rng.try_fill_bytes(&mut arr[..])?;
         Ok(Id(arr))
     }
 }
@@ -408,9 +408,9 @@ pub trait IdAllocator {
     /// If the random number generator cannot fill a slice, the [`rand::Error`] will be returned.
     ///
     /// [bep_0042]: http://bittorrent.org/beps/bep_0042.html
-    fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, rand::Error>
+    fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::Rng;
+        R: rand::TryRngCore + rand::Rng;
 
     /// Determines if an [`Id`] follows the restrictions in [BEP 42][bep_0042].
     ///
@@ -420,9 +420,9 @@ pub trait IdAllocator {
 
 #[cfg(feature = "std")]
 impl IdAllocator for IpAddr {
-    fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, rand::Error>
+    fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::Rng,
+        R: rand::TryRngCore + rand::Rng,
     {
         match self {
             IpAddr::V4(addr) => addr.rand_id(rand, rng),
@@ -440,16 +440,16 @@ impl IdAllocator for IpAddr {
 
 #[cfg(feature = "std")]
 impl IdAllocator for Ipv4Addr {
-    fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, rand::Error>
+    fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::Rng,
+        R: rand::TryRngCore + rand::Rng,
     {
-        let rand = rand.unwrap_or_else(|| rng.gen_range(0..8));
+        let rand = rand.unwrap_or_else(|| rng.random_range(0..8));
         let crc32_val = self.make_crc32c(rand).to_be_bytes();
         let mut id = Id::rand(rng)?;
         id.0[0] = crc32_val[0];
         id.0[1] = crc32_val[1];
-        id.0[2] = crc32_val[2] & 0xF8 | rng.gen_range(0..8);
+        id.0[2] = crc32_val[2] & 0xF8 | rng.random_range(0..8);
         id.0[19] = rand;
 
         Ok(id)
@@ -496,16 +496,16 @@ impl IdAllocator for Ipv4Addr {
 
 #[cfg(feature = "std")]
 impl IdAllocator for Ipv6Addr {
-    fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, rand::Error>
+    fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::Rng,
+        R: rand::TryRngCore + rand::Rng,
     {
-        let rand = rand.unwrap_or_else(|| rng.gen_range(0..8));
+        let rand = rand.unwrap_or_else(|| rng.random_range(0..8));
         let crc32_val = self.make_crc32c(rand).to_be_bytes();
         let mut id = Id::rand(rng)?;
         id.0[0] = crc32_val[0];
         id.0[1] = crc32_val[1];
-        id.0[2] = crc32_val[2] & 0xF8 | rng.gen_range(0..8);
+        id.0[2] = crc32_val[2] & 0xF8 | rng.random_range(0..8);
         id.0[19] = rand;
         Ok(id)
     }
@@ -568,13 +568,13 @@ mod test {
         #[allow(clippy::ignored_unit_patterns)]
         #[test]
         fn make_only_valid_node_ids_for_ipv4(ip in any::<Ipv4Addr>(), rand in any::<Option<u8>>()) {
-            assert!(ip.is_valid(ip.rand_id(rand, &mut rand::thread_rng()).unwrap()));
+            assert!(ip.is_valid(ip.rand_id(rand, &mut rand::rng()).unwrap()));
         }
 
         #[allow(clippy::ignored_unit_patterns)]
         #[test]
         fn make_only_valid_node_ids_for_ipv6(ip in any::<Ipv6Addr>(), rand in any::<Option<u8>>()) {
-            assert!(ip.is_valid(ip.rand_id(rand, &mut rand::thread_rng()).unwrap()));
+            assert!(ip.is_valid(ip.rand_id(rand, &mut rand::rng()).unwrap()));
         }
 
         #[allow(clippy::ignored_unit_patterns)]
@@ -608,7 +608,7 @@ mod test {
     #[test]
     fn test_ipv4_make_node_id_1() {
         let ip = "124.31.75.21".parse::<Ipv4Addr>().unwrap();
-        let id = ip.rand_id(None, &mut rand::thread_rng()).unwrap();
+        let id = ip.rand_id(None, &mut rand::rng()).unwrap();
         assert!(ip.is_valid(id));
     }
 
@@ -626,7 +626,7 @@ mod test {
     #[test]
     fn test_ipv4_make_node_id_2() {
         let ip = "21.75.31.124".parse::<Ipv4Addr>().unwrap();
-        let id = ip.rand_id(None, &mut rand::thread_rng()).unwrap();
+        let id = ip.rand_id(None, &mut rand::rng()).unwrap();
         assert!(ip.is_valid(id));
     }
 
@@ -644,7 +644,7 @@ mod test {
     #[test]
     fn test_ipv4_make_node_id_3() {
         let ip = "65.23.51.170".parse::<Ipv4Addr>().unwrap();
-        let id = ip.rand_id(None, &mut rand::thread_rng()).unwrap();
+        let id = ip.rand_id(None, &mut rand::rng()).unwrap();
         assert!(ip.is_valid(id));
     }
 
@@ -662,7 +662,7 @@ mod test {
     #[test]
     fn test_ipv4_make_node_id_4() {
         let ip = "84.124.73.14".parse::<Ipv4Addr>().unwrap();
-        let id = ip.rand_id(None, &mut rand::thread_rng()).unwrap();
+        let id = ip.rand_id(None, &mut rand::rng()).unwrap();
         assert!(ip.is_valid(id));
     }
 
@@ -680,7 +680,7 @@ mod test {
     #[test]
     fn test_ipv4_make_node_id_5() {
         let ip = "43.213.53.83".parse::<Ipv4Addr>().unwrap();
-        let id = ip.rand_id(None, &mut rand::thread_rng()).unwrap();
+        let id = ip.rand_id(None, &mut rand::rng()).unwrap();
         assert!(ip.is_valid(id));
     }
 
