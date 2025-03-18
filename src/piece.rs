@@ -358,7 +358,7 @@ pub fn verify_bitfield<T: AsRef<[u8]>>(
     if remainder != 0 {
         if let Some(last_byte) = bitfield.last() {
             for offset in remainder..8 {
-                if (last_byte & 0x80 >> offset) != 0 {
+                if (last_byte & (0x80 >> offset)) != 0 {
                     return Err(InvalidBitfieldError);
                 }
             }
