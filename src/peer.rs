@@ -501,7 +501,7 @@ pub struct Writer<'a, Instant> {
     peer_have_pieces: &'a IndexBitfield,
 }
 
-impl<'a, Instant> Writer<'a, Instant>
+impl<Instant> Writer<'_, Instant>
 where
     Instant: time::Instant,
 {

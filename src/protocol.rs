@@ -499,7 +499,7 @@ impl HaveMsg {
 #[derive(Clone, PartialEq, Eq)]
 pub struct BitfieldMsg<'a>(pub &'a [u8]);
 
-impl<'a> BitfieldMsg<'a> {
+impl BitfieldMsg<'_> {
     /// Message type identifier.
     pub const TYPE: u8 = 5;
 
@@ -514,10 +514,10 @@ impl<'a> BitfieldMsg<'a> {
     }
 }
 
-impl<'a> fmt::Debug for BitfieldMsg<'a> {
+impl fmt::Debug for BitfieldMsg<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         struct BytesDebug<'a>(&'a [u8]);
-        impl<'a> fmt::Debug for BytesDebug<'a> {
+        impl fmt::Debug for BytesDebug<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 for b in self.0 {
                     write!(f, "{b:02x}")?;
@@ -554,7 +554,7 @@ impl RequestMsg {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PieceMsg<'a>(pub BlockData<'a>);
 
-impl<'a> PieceMsg<'a> {
+impl PieceMsg<'_> {
     /// Message type identifier.
     pub const TYPE: u8 = 7;
 

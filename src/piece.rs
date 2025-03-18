@@ -309,7 +309,7 @@ impl<'a> BlockData<'a> {
     }
 }
 
-impl<'a> fmt::Debug for BlockData<'a> {
+impl fmt::Debug for BlockData<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BlockData")
             .field("index", &self.index)

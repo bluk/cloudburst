@@ -127,7 +127,7 @@ pub struct Metainfo<'a> {
     pub info: Info<'a>,
 }
 
-impl<'a> Metainfo<'a> {}
+impl Metainfo<'_> {}
 
 /// Information about the data exchanged in the torrent.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -153,7 +153,7 @@ pub struct Info<'a> {
     pub meta_version: Option<u64>,
 }
 
-impl<'a> Info<'a> {
+impl Info<'_> {
     /// The number of bytes for each piece of a file, except the last one which is the leftover bytes.
     ///
     /// # Panics
@@ -241,7 +241,7 @@ pub struct File<'a> {
     path: Vec<&'a str>,
 }
 
-impl<'a> File<'a> {
+impl File<'_> {
     /// The length of the file.
     #[must_use]
     pub fn length(&self) -> u64 {

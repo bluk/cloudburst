@@ -237,7 +237,7 @@ pub struct QueryArgs<'a> {
     pub id: &'a [u8],
 }
 
-impl<'a> QueryArgs<'a> {
+impl QueryArgs<'_> {
     /// Returns the querying node's ID.
     #[must_use]
     #[inline]
@@ -254,7 +254,7 @@ pub struct RespValues<'a> {
     pub id: &'a [u8],
 }
 
-impl<'a> RespValues<'a> {
+impl RespValues<'_> {
     /// Returns the querying node's ID.
     #[must_use]
     #[inline]
@@ -322,7 +322,7 @@ impl<'de> Deserialize<'de> for ErrorCode {
     {
         struct I64Visitor;
 
-        impl<'de> Visitor<'de> for I64Visitor {
+        impl Visitor<'_> for I64Visitor {
             type Value = ErrorCode;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -395,17 +395,14 @@ impl Serialize for CompactAddrV4 {
     }
 }
 
-impl<'a, 'de> Deserialize<'de> for CompactAddrV4
-where
-    'de: 'a,
-{
+impl<'de> Deserialize<'de> for CompactAddrV4 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         struct CompactAddrV4Visitor;
 
-        impl<'de> Visitor<'de> for CompactAddrV4Visitor {
+        impl Visitor<'_> for CompactAddrV4Visitor {
             type Value = CompactAddrV4;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -534,17 +531,14 @@ impl Serialize for CompactAddrV6 {
     }
 }
 
-impl<'a, 'de> Deserialize<'de> for CompactAddrV6
-where
-    'de: 'a,
-{
+impl<'de> Deserialize<'de> for CompactAddrV6 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         struct CompactAddrV6Visitor;
 
-        impl<'de> Visitor<'de> for CompactAddrV6Visitor {
+        impl Visitor<'_> for CompactAddrV6Visitor {
             type Value = CompactAddrV6;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -669,17 +663,14 @@ impl Serialize for CompactAddr {
     }
 }
 
-impl<'a, 'de> Deserialize<'de> for CompactAddr
-where
-    'de: 'a,
-{
+impl<'de> Deserialize<'de> for CompactAddr {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         struct CompactAddrVisitor;
 
-        impl<'de> Visitor<'de> for CompactAddrVisitor {
+        impl Visitor<'_> for CompactAddrVisitor {
             type Value = CompactAddr;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

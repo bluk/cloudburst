@@ -12,7 +12,7 @@ use serde::{ser::SerializeMap, Serialize, Serializer};
 
 struct AsBytes<'a>(&'a [u8]);
 
-impl<'a> Serialize for AsBytes<'a> {
+impl Serialize for AsBytes<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -34,7 +34,7 @@ pub struct QueryMsg<'a, T> {
     pub v: Option<&'a [u8]>,
 }
 
-impl<'a, T> Serialize for QueryMsg<'a, T>
+impl<T> Serialize for QueryMsg<'_, T>
 where
     T: Serialize,
 {
@@ -65,7 +65,7 @@ pub struct RespMsg<'a, T> {
     pub v: Option<&'a [u8]>,
 }
 
-impl<'a, T> Serialize for RespMsg<'a, T>
+impl<T> Serialize for RespMsg<'_, T>
 where
     T: Serialize,
 {
@@ -95,7 +95,7 @@ pub struct ErrMsg<'a, T> {
     pub v: Option<&'a [u8]>,
 }
 
-impl<'a, T> Serialize for ErrMsg<'a, T>
+impl<T> Serialize for ErrMsg<'_, T>
 where
     T: Serialize,
 {
