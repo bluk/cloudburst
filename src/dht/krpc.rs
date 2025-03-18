@@ -374,7 +374,7 @@ impl CompactAddrV4 {
     }
 }
 
-impl core::fmt::Display for CompactAddrV4 {
+impl fmt::Display for CompactAddrV4 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let port = <[u8; 2]>::try_from(&self.0[4..6]).unwrap();
         let port = u16::from_be_bytes(port);
@@ -411,7 +411,7 @@ impl<'de> Deserialize<'de> for CompactAddrV4 {
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 match v.len() {
                     6 => Ok(CompactAddrV4::from(
@@ -500,7 +500,7 @@ impl CompactAddrV6 {
     }
 }
 
-impl core::fmt::Display for CompactAddrV6 {
+impl fmt::Display for CompactAddrV6 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
         let mut index = 0;
@@ -547,7 +547,7 @@ impl<'de> Deserialize<'de> for CompactAddrV6 {
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 match v.len() {
                     18 => Ok(CompactAddrV6::from(
@@ -621,7 +621,7 @@ pub enum CompactAddr {
     V6(CompactAddrV6),
 }
 
-impl core::fmt::Display for CompactAddr {
+impl fmt::Display for CompactAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CompactAddr::V4(addr) => write!(f, "{addr}"),
@@ -679,7 +679,7 @@ impl<'de> Deserialize<'de> for CompactAddr {
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: de::Error,
             {
                 match v.len() {
                     6 => Ok(CompactAddr::V4(CompactAddrV4::from(

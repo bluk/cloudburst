@@ -15,7 +15,7 @@ use core::{borrow::Borrow, fmt};
 
 use crate::{
     metainfo::InfoHash,
-    peer::{self, Id, InvalidInput},
+    peer::{Id, InvalidInput},
     piece::{Block, BlockBegin, BlockData, BlockLength, Index},
 };
 
@@ -683,7 +683,7 @@ where
             let peer_id = {
                 let mut tmp: [u8; 20] = [0; 20];
                 buf.copy_to_slice(&mut tmp);
-                peer::Id::from(tmp)
+                Id::from(tmp)
             };
 
             Ok(Some(ReceivedHandshakeState::ReceivedHandshake(
@@ -881,6 +881,7 @@ impl core::ops::AddAssign for Metrics {
 mod tests {
     use super::*;
 
+    #[allow(unused_qualifications)]
     #[test]
     fn test_metrics_size() {
         assert_eq!(core::mem::size_of::<Metrics>(), 112);

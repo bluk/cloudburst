@@ -54,6 +54,7 @@ impl TryFrom<&[u8]> for Id {
     type Error = core::array::TryFromSliceError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        #[allow(unused_qualifications)]
         <[u8; core::mem::size_of::<u16>()]>::try_from(value).map(Id)
     }
 }
