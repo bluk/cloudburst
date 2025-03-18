@@ -689,7 +689,7 @@ where
         self.0
             .iter()
             .enumerate()
-            .filter(|(_, &req_count)| req_count > T::default())
+            .filter(|&(_, &req_count)| req_count > T::default())
             .map(|(index, _)| Index::from(u32::try_from(index).unwrap()))
     }
 }

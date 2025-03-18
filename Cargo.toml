@@ -3,7 +3,7 @@ authors = ["Bryant Luk <code@bryantluk.com>"]
 categories = ["network-programming"]
 description = "A library to help with the implementation of torrent based protocols and algorithms."
 documentation = "https://docs.rs/cloudburst/"
-edition = "2021"
+edition = "2024"
 include = [
   "src/**/*.rs",
   "Cargo.toml",
@@ -17,7 +17,7 @@ license = "MIT OR Apache-2.0"
 name = "cloudburst"
 readme = "README.md"
 repository = "https://github.com/bluk/cloudburst"
-rust-version = "1.68.0"
+rust-version = "1.85.0"
 version = "0.0.5"
 
 [features]

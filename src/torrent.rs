@@ -46,21 +46,21 @@ pub struct SessionId<G, I> {
     /// Index
     pub index: I,
     /// Generation
-    pub gen: G,
+    pub generation: G,
 }
 
 impl<G, I> From<(I, G)> for SessionId<G, I> {
     fn from(value: (I, G)) -> Self {
         Self {
             index: value.0,
-            gen: value.1,
+            generation: value.1,
         }
     }
 }
 
 impl<G, I> From<SessionId<G, I>> for (I, G) {
     fn from(value: SessionId<G, I>) -> Self {
-        (value.index, value.gen)
+        (value.index, value.generation)
     }
 }
 

@@ -627,7 +627,7 @@ where
     B: Buf,
 {
     match state {
-        ReceivedHandshakeState::None(mut handshake_offset) => {
+        &ReceivedHandshakeState::None(mut handshake_offset) => {
             let offset = handshake_offset;
             for _ in offset..core::cmp::min(20, buf.remaining()) {
                 if PROTOCOL_STRING_BYTES[handshake_offset] != buf.get_u8() {
