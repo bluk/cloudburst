@@ -76,7 +76,7 @@ pub enum Frame<'a> {
     ///
     /// * If the local peer will no longer fulfill requests.
     /// * Usually sent if the local peer changes which peers are choked and not
-    /// choked based on which peer has sent more verified pieces.
+    ///   choked based on which peer has sent more verified pieces.
     Choke,
     /// Unchoke message
     ///
@@ -86,9 +86,9 @@ pub enum Frame<'a> {
     ///
     /// * If the local peer will fulfill requests.
     /// * Usually sent if the local peer changes which peers are choked and not
-    /// choked based on which peer has sent more verified pieces.
+    ///   choked based on which peer has sent more verified pieces.
     /// * May be sent if the local peer is trying to find a peer which can send
-    /// more piece data efficiently
+    ///   more piece data efficiently
     Unchoke,
     /// Interested message
     ///
@@ -97,10 +97,10 @@ pub enum Frame<'a> {
     /// Should be sent at least in the following situations:
     ///
     /// * After a remote peer's [BitfieldMsg] message is
-    /// received and the remote peer has pieces which the local peer does not
-    /// have.
+    ///   received and the remote peer has pieces which the local peer does not
+    ///   have.
     /// * After a remote peer's [HaveMsg] message is received and the
-    /// [HaveMsg]'s piece index is a piece which the local peer does not have.
+    ///   [HaveMsg]'s piece index is a piece which the local peer does not have.
     Interested,
     /// Not interested message
     ///
@@ -109,8 +109,8 @@ pub enum Frame<'a> {
     /// Should be sent at least in the following situations:
     ///
     /// * After a local peer has a new piece, the local peer should check each
-    /// remote peer to see if the remote peer is still interesting. If not
-    /// interesting, the not interested message should be sent.
+    ///   remote peer to see if the remote peer is still interesting. If not
+    ///   interesting, the not interested message should be sent.
     NotInterested,
     /// Have piece index message
     ///
@@ -119,8 +119,8 @@ pub enum Frame<'a> {
     /// Should be sent at least in the following situations:
     ///
     /// * After a local peer has a new piece, the local peer should check each
-    /// remote peer to if they have the piece. If the remote peer does not have the piece,
-    /// the have message should be sent.
+    ///   remote peer to if they have the piece. If the remote peer does not have the piece,
+    ///   the have message should be sent.
     Have(HaveMsg),
     /// Have piece index bitfield message
     ///
