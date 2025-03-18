@@ -66,7 +66,7 @@ fn validate_path<P: AsRef<Path>>(path: P) -> Result<(), Error> {
                 return Err(Error::InvalidPath);
             }
             Component::CurDir | Component::RootDir | Component::Prefix(_) => {
-                return Err(Error::InvalidPath)
+                return Err(Error::InvalidPath);
             }
         }
     }

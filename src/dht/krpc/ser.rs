@@ -8,7 +8,7 @@
 
 //! Serialization of KRPC messages.
 
-use serde::{ser::SerializeMap, Serialize, Serializer};
+use serde::{Serialize, Serializer, ser::SerializeMap};
 
 struct AsBytes<'a>(&'a [u8]);
 

@@ -125,7 +125,7 @@ mod tests {
 
     use super::*;
 
-    use crate::dht::krpc::{ser, Error, Msg, Ty};
+    use crate::dht::krpc::{Error, Msg, Ty, ser};
 
     #[test]
     fn test_serde_announce_peer_query() -> Result<(), Error> {

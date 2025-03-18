@@ -196,7 +196,7 @@ mod tests {
 
     use super::*;
 
-    use crate::dht::krpc::{ser, Msg, Ty};
+    use crate::dht::krpc::{Msg, Ty, ser};
 
     #[test]
     fn test_serde_get_peers_query() -> Result<(), Error> {

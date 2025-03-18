@@ -425,7 +425,9 @@ mod internal {
             assert!(!overflow);
             assert_eq!(
                 bytes,
-                [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39,]
+                [
+                    1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39,
+                ]
             );
         }
 
@@ -452,7 +454,9 @@ mod internal {
             let bytes = shift_right(bytes);
             assert_eq!(
                 bytes,
-                [0, 0, 129, 1, 130, 2, 131, 3, 132, 4, 133, 5, 134, 6, 135, 7, 136, 8, 137, 9]
+                [
+                    0, 0, 129, 1, 130, 2, 131, 3, 132, 4, 133, 5, 134, 6, 135, 7, 136, 8, 137, 9
+                ]
             );
         }
 
@@ -610,11 +614,12 @@ where
             self.buckets.push(lower_bucket);
             self.buckets.push(upper_bucket);
         }
-        debug_assert!(self
-            .buckets
-            .last()
-            .map(|b| { b.range.contains(&self.pivot) })
-            .unwrap_or_default());
+        debug_assert!(
+            self.buckets
+                .last()
+                .map(|b| { b.range.contains(&self.pivot) })
+                .unwrap_or_default()
+        );
     }
 }
 
