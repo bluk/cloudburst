@@ -26,6 +26,8 @@ use std::{
     vec::Vec,
 };
 
+use rand::RngExt as _;
+
 /// A 160-bit value which is used to identify a node's position within the distributed hash table.
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Id(pub [u8; 20]);
@@ -106,7 +108,7 @@ impl Id {
     /// If the random number generator cannot fill an array with random data.
     pub fn rand<R>(rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::TryRngCore,
+        R: rand::rand_core::TryRng,
     {
         let mut arr: [u8; 20] = [0; 20];
         rng.try_fill_bytes(&mut arr[..])?;
@@ -249,7 +251,7 @@ impl<A> AddrId<A> {
     /// use cloudburst::dht::node::{AddrId, Id};
     ///
     /// let socket_addr = "example.com:6881".to_socket_addrs().unwrap().next().unwrap();
-    /// let node_id = Id::rand(&mut rand::thread_rng()).unwrap();
+    /// let node_id = Id::rand(&mut rand::rng()).unwrap();
     /// let addr_id = AddrId::new(socket_addr, node_id);
     /// assert_eq!(*addr_id.addr(), socket_addr);
     /// assert_eq!(addr_id.id(), node_id);
@@ -298,7 +300,7 @@ impl<A> AddrOptId<A> {
     /// use cloudburst::dht::node::{AddrOptId, Id};
     ///
     /// let socket_addr = "example.com:6881".to_socket_addrs().unwrap().next().unwrap();
-    /// let node_id = Id::rand(&mut rand::thread_rng()).unwrap();
+    /// let node_id = Id::rand(&mut rand::rng()).unwrap();
     /// let addr_opt_id = AddrOptId::new(socket_addr, Some(node_id));
     /// assert_eq!(*addr_opt_id.addr(), socket_addr);
     /// assert_eq!(addr_opt_id.id(), Some(node_id));
@@ -410,7 +412,7 @@ pub trait IdAllocator {
     /// [bep_0042]: http://bittorrent.org/beps/bep_0042.html
     fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::TryRngCore + rand::Rng;
+        R: rand::rand_core::TryRng + rand::Rng;
 
     /// Determines if an [`Id`] follows the restrictions in [BEP 42][bep_0042].
     ///
@@ -422,7 +424,7 @@ pub trait IdAllocator {
 impl IdAllocator for IpAddr {
     fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::TryRngCore + rand::Rng,
+        R: rand::rand_core::TryRng + rand::Rng,
     {
         match self {
             IpAddr::V4(addr) => addr.rand_id(rand, rng),
@@ -442,7 +444,7 @@ impl IdAllocator for IpAddr {
 impl IdAllocator for Ipv4Addr {
     fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::TryRngCore + rand::Rng,
+        R: rand::rand_core::TryRng + rand::Rng,
     {
         let rand = rand.unwrap_or_else(|| rng.random_range(0..8));
         let crc32_val = self.make_crc32c(rand).to_be_bytes();
@@ -498,7 +500,7 @@ impl IdAllocator for Ipv4Addr {
 impl IdAllocator for Ipv6Addr {
     fn rand_id<R>(&self, rand: Option<u8>, rng: &mut R) -> Result<Id, R::Error>
     where
-        R: rand::TryRngCore + rand::Rng,
+        R: rand::rand_core::TryRng + rand::Rng,
     {
         let rand = rand.unwrap_or_else(|| rng.random_range(0..8));
         let crc32_val = self.make_crc32c(rand).to_be_bytes();

@@ -33,7 +33,7 @@ bt_bencode = { version = "0.8", default-features = false }
 bytes = { version = "1.1", default-features = false }
 crc32c = "0.6"
 gen_value = { version = "0.7", default-features = false }
-rand = { version = "0.9", default-features = false }
+rand = { version = "0.10", default-features = false }
 serde = { version = "1.0", default-features = false }
 serde_bytes = { version = "0.11", default-features = false }
 serde_derive = { version = "1.0" }

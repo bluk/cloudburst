@@ -36,7 +36,7 @@ impl Id {
     /// Returns an error if the random number generator cannot fill a byte array.
     pub fn rand<R>(rng: &mut R) -> Result<Self, R::Error>
     where
-        R: rand::Rng + rand::TryRngCore,
+        R: rand::Rng + rand::rand_core::TryRng,
     {
         let mut inner = [0u8; 2];
         rng.try_fill_bytes(&mut inner)?;

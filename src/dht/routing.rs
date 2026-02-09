@@ -79,7 +79,7 @@ where
     #[inline]
     pub fn rand_id<R>(&self, rng: &mut R) -> Id
     where
-        R: rand::RngCore,
+        R: rand::rand_core::Rng,
     {
         internal::rand_in_inclusive_range(&self.range, rng)
     }
@@ -203,6 +203,8 @@ where
 }
 
 mod internal {
+
+    use rand::RngExt as _;
 
     use crate::dht::node::Id;
 
